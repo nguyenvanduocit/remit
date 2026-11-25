@@ -336,15 +336,17 @@ each hit.
 - Package manager → `npm` for `web/`; on macOS use `gmake`. Builds write to `CARGO_TARGET_DIR=$HOME/.cache/remit-target`.
 - Text search → `rg` in Bash (the `Grep` tool is not registered in every session); AST and structural search → `sg`. A tool
   named in a `<system-reminder>` without a schema → `ToolSearch select:<name>`, then call it: it exists, just deferred.
-- **Ship**: Remit runs locally (the dev instance below). A verified change is pushed to `origin/master`, unasked; every
+- **Ship**: A verified change is pushed to `origin/master`, unasked; every
   push is a GitHub release (`.github/workflows/release.yml` tests it and publishes it as `<yyyymmdd>-<short sha>`).
   Pushing is the last step: never wait on CI, and never deploy to another machine.
-- **Dev instance after every task.** When a task is done, the dev app (`make dev`, `scripts/dev.sh`: backend on 4321, Vite on
-  5173, data in `~/.remit-dev`) runs your change, unasked. A change to the server (`crates/`, migrations, embedded assets,
-  `crates/builtin/skills`) → `make dev` with `run_in_background=true`: it rebuilds the backend and restarts both ports. The
-  web app only → confirm Vite hot-reloads: `lsof -ti tcp:5173 -sTCP:LISTEN` returns a pid and `curl -s localhost:5173/`
-  serves the page, else `make dev`. Check `curl -s 127.0.0.1:4321/healthz` before reporting and say which one you
-  restarted.
+- **Update the running app after every code change.** On this Mac, the owner uses the launchd job
+  `gui/$(id -u)/remit` on port 4320. Build the verified commit with `gmake build` in a clean checkout, keep the
+  previous binary and a pre-upgrade database snapshot. Stage the binary with the launchd job's signing identifier
+  (`codesign --force --sign - --identifier remit` for this ad hoc-signed install), verify the signature and atomically
+  install it at the job's configured path. Send SIGTERM to drain the service, then reload its existing plist if
+  launchd does not start the new binary. Check the expected revision and connected runtime at
+  `http://127.0.0.1:4320/healthz`, verify any migration and check the changed surface on that instance before pushing.
+  Use the dev app (`gmake dev`, ports 4321 and 5173, data in `~/.remit-dev`) for development.
 - **Async work.** `Bash run_in_background=true` for a one-shot wait; `Monitor` (one notification per stdout line) for a
   stream or an until-condition on a real signal (`until <status check>; do sleep 2; done`). Never a bare `sleep N`, never
   poll what the harness tracks (it re-invokes you); `ScheduleWakeup` only for outside state (CI, a deploy).
