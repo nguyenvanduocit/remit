@@ -19,11 +19,11 @@ use tracing::Instrument;
 use wire::app::Delivery;
 
 use crate::apply::Records;
+use crate::attachments::{attachments_in, with_attachments};
 use crate::background::OwnTurn;
 use crate::chain_core::Core;
 use crate::chain_core::new_id;
 use crate::health::elapsed;
-use crate::images::{images_in, with_images};
 use crate::inbox::{Cause, Failed};
 use crate::mailbox::Mailbox;
 use crate::outbox::{Message, owner_message, restart_by, sent_by};
@@ -1198,7 +1198,7 @@ impl Core {
             let id = d.card_id.clone();
             let to = o.store.read(move |s| s.card(&id)).await?;
             let mut m = owner_message(&to.id, "Your message", d.text.trim(), by);
-            m.data = with_images(m.data, &d.images);
+            m.data = with_attachments(m.data, &d.attachments);
             o.owner_says(
                 &to,
                 m,
@@ -1260,7 +1260,7 @@ impl Core {
             id: new_id("d_"),
             home: e.home.clone(),
             text: e.text.clone(),
-            images: images_in(e.data.as_ref()),
+            attachments: attachments_in(e.data.as_ref()),
             card_id: e.card_id.clone(),
             updated_at: self.now(),
             ..Draft::default()

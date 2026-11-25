@@ -755,14 +755,14 @@ impl Reader<'_> {
 // only so that a save of it arriving late is refused, until forget_drafts.
 
 impl Tx<'_> {
-    /// Saves d: a new draft at revision 1, or new words and images on the stored one at its next revision (what a draft is about is
+    /// Saves d: a new draft at revision 1, or new words and attachments on the stored one at its next revision (what a draft is about is
     /// kept as first saved). Unlike every other record, a save is not refused over a stale revision: a draft is the
     /// owner's words as he types them, and the newest save is what he sees; its revision guards its end (`end_drafts`).
     /// `Error::DraftEnded` when d was ended.
     pub fn put_draft(&self, d: &Draft) -> Result<Draft> {
         let saved = self.one(
             "INSERT INTO drafts(id, home, at, doc) VALUES(?,?,?,json_set(?, '$.rev', 1))
-ON CONFLICT(id) DO UPDATE SET doc=json_set(drafts.doc, '$.text', json_extract(excluded.doc, '$.text'), '$.images', excluded.doc -> '$.images', '$.updatedAt', json_extract(excluded.doc, '$.updatedAt'),
+ON CONFLICT(id) DO UPDATE SET doc=json_set(drafts.doc, '$.text', json_extract(excluded.doc, '$.text'), '$.attachments', excluded.doc -> '$.attachments', '$.updatedAt', json_extract(excluded.doc, '$.updatedAt'),
   '$.rev', json_extract(drafts.doc, '$.rev') + 1) WHERE drafts.ended IS NULL
 RETURNING doc",
             params![d.id, d.home, ms(d.updated_at), doc(d)?],

@@ -83,13 +83,13 @@ impl Handler for MentorApi {
         crate::link_report::keep(&self.o, Sender::Mentor(&self.key.id), report, &self.faults).await
     }
 
-    /// Images are the owner's for now: a mentor's would be scoped to the cards of their helps first.
-    async fn image_put(&self, _id: String, _home: String, _image: model::Image) -> Result<Ack, Failure> {
-        Err(denied("image_put"))
+    /// Attachments are the owner's for now: a mentor's would be scoped to the cards of their helps first.
+    async fn attachment_put(&self, _id: String, _home: String, _attachment: model::Attachment) -> Result<Ack, Failure> {
+        Err(denied("attachment_put"))
     }
 
-    async fn image_get(&self, _id: String) -> Result<model::Image, Failure> {
-        Err(denied("image_get"))
+    async fn attachment_get(&self, _id: String) -> Result<model::Attachment, Failure> {
+        Err(denied("attachment_get"))
     }
 
     async fn card_events(&self, card_id: String, before: i64) -> Result<EventPage, Failure> {

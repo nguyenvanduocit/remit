@@ -2,7 +2,7 @@
 import Icon from './Icon.vue';
 import { computed, ref } from 'vue';
 import { useStream } from '../streamContext';
-import { imageUrl } from '../images';
+import { imageUrl, isInlineImage } from '../attachments';
 import { actorName, agentSender, dataOf, foldedRuns, isStep, mentorSaid, mentorText, noteOf, ownerSent, permissionLabel, stepLook, TOOL_ICON as ICON, toolCall, toolOf, type Block } from '../stream';
 import { durSec, hm, plural, short } from '../ui';
 import Markdown from './Markdown.vue';
@@ -103,7 +103,14 @@ const groupMs = (events: EventRead[]) => events.reduce((s, e) => s + Math.max(0,
 
     <div v-else-if="b.type === 'prompt' && ownerSent(b.event)" class="mine" :data-by="b.event.event.by!.kind"><div class="meta">{{ actorName(b.event.event.by!, stream.nameOf) }} · {{ hm(b.event.event.createdAt) }}</div>
       <div v-if="b.event.event.text.trim()" class="bubble" :class="{ queued: b.event.event.status === 'queued', dropped: b.event.event.status === 'dropped', assistant: b.event.event.by!.kind === 'assistant' }">{{ b.event.event.text }}</div>
-      <div v-if="dataOf(b.event).images?.length" class="shots" data-images><img v-for="(i, n) in dataOf(b.event).images" :key="i.id" :src="imageUrl(i.id)" :alt="`Image ${n + 1} of your message`" class="shot" /></div>
+      <ul v-if="dataOf(b.event).attachments?.length" class="attachments" aria-label="Message attachments" data-attachments>
+        <li v-for="(i, n) in dataOf(b.event).attachments" :key="i.id" class="min-w-0 max-w-full">
+          <img v-if="isInlineImage(i.mediaType)" :src="imageUrl(i.id)" :alt="i.name || `Image ${n + 1} of your message`" class="shot" />
+          <span v-else class="flex items-center gap-1.5 rounded-md border border-line px-2 py-1.5 text-xs" :title="i.name">
+            <Icon name="paperclip" :size="13" class="shrink-0" /><span class="truncate">{{ i.name }}</span>
+          </span>
+        </li>
+      </ul>
       <ReceiptLine class="mt-[3px]" :event="b.event" /></div>
 
     <div v-else-if="b.type === 'prompt' && mentorSaid(b.event)" class="said" data-mentor-said>
@@ -268,9 +275,10 @@ const groupMs = (events: EventRead[]) => events.reduce((s, e) => s + Math.max(0,
   border-color: var(--red-line);
   background: var(--red-bg2);
 }
-/* The images the owner sent with his words, under them, at a size that reads in the column. */
-.shots {
+/* Keep attachment names and image previews inside the message column. */
+.attachments {
   display: flex;
+  max-width: 100%;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;

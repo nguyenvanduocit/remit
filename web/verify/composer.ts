@@ -20,11 +20,12 @@ import { Toaster } from '../src/components/ui/sonner';
 import { apiKey } from '../src/core/api';
 import { opened, openChain } from '../src/openChain';
 import { api } from '../src/replica';
+import { dataOf } from '../src/stream';
 import { fakeServer, snapshotOf } from './fake';
 import { fakeDrafts } from './fakeDrafts';
 import { agentStands, stands } from './standingSeed';
 import { tool, turnEnd } from './activitySeed';
-import type { AgentStanding, Delivery, EventKind, EventRead, Image } from '../src/core/generated/types.generated';
+import type { AgentStanding, Delivery, EventKind, EventRead, Attachment } from '../src/core/generated/types.generated';
 import '../src/theme.css';
 import { actorOf, cardRecord, chainRead, chainRecord, inboxRecord, optionOf, permissionAsk, seedEvent, type EventSeed } from './records';
 
@@ -104,7 +105,7 @@ const standing = (): AgentStanding => ({
 // pushes goes once the fake is up, after its answer, as a server's does.
 const drafts = fakeDrafts(`composer-${which}`, (name, arg) => queueMicrotask(() => fake.push(name as never, arg as never)));
 const calls: string[] = [];
-const images = new Map<string, Image>();
+const attachments = new Map<string, Attachment>();
 (window as unknown as { calls: string[] }).calls = calls;
 const fake = fakeServer({
   appSnapshot: () => snapshotOf({ chains: [chainRead(chain)], inbox: busy ? [permission] : [], standings: [stands('c1', paused ? 'Paused' : 'Running', paused ? 'paused' : 'running')] }),
@@ -128,7 +129,7 @@ const fake = fakeServer({
   cardPromptWithdraw: (eventId) => {
     const e = events.find((x) => x.event.id === eventId);
     if (!e || e.event.status !== 'queued') throw { code: 'FAILED', message: 'the agent has read it already' };
-    const draft = drafts.draftSave({ id: `wd${eventId}`, home: 'c1', cardId: open.id, text: e.event.text, images: [] }, 0);
+    const draft = drafts.draftSave({ id: `wd${eventId}`, home: 'c1', cardId: open.id, text: e.event.text, attachments: dataOf(e).attachments ?? [] }, 0);
     calls.push(`cardPromptWithdraw ${eventId}`);
     events.splice(events.indexOf(e), 1);
     fake.push('eventDeleted', { id: eventId, home: 'c1', cardId: open.id });
@@ -140,11 +141,12 @@ const fake = fakeServer({
     fake.push('agentStandingUpdated', { ...standing(), label: 'Running', tone: 'running', doing: 'Running a command…', doingTone: 'busy', waiting: [], rev: 100 });
     return {};
   },
-  // An image put is kept as given and read back by its id, as the server keeps its bytes.
-  imagePut: (id, home, image) => (calls.push(`imagePut ${id} ${home} ${image.mediaType} ${image.data.length}`), images.set(id, image), {}),
-  imageGet: (id) => {
-    const i = images.get(id);
-    if (!i) throw { code: 'NOT_FOUND', message: `no image ${id}` };
+  // An attachment put is kept as given and read back by its id, as the server keeps its bytes.
+  attachmentPut: (id, home, attachment) => (calls.push(`attachmentPut ${id} ${home} ${attachment.mediaType} ${attachment.data.length}`), attachments.set(id, attachment), {}),
+  attachmentGet: (id) => {
+    calls.push(`attachmentGet ${id}`);
+    const i = attachments.get(id);
+    if (!i) throw { code: 'NOT_FOUND', message: `no attachment ${id}` };
     return i;
   },
   cardCancel: (id) => (calls.push(`cardCancel ${id}`), {}),
@@ -153,10 +155,10 @@ const fake = fakeServer({
 // A message sent: it ends the draft and lands in the stream as the delivery says it meets the turn in progress.
 function prompt(draftId: string, delivery: Delivery): EventRead {
   const text = drafts.get(draftId)?.text ?? '';
-  const shots = drafts.get(draftId)?.images ?? [];
-  calls.push(`cardPrompt ${delivery} ${text} images=${shots.length}`);
+  const files = drafts.get(draftId)?.attachments ?? [];
+  calls.push(`cardPrompt ${delivery} ${text} attachments=${files.length}`);
   drafts.end([draftId]);
-  const e = ev('prompt', 6, { title: 'Your message', text: `${text}`, by: owner, status: busy && delivery === 'queue' ? 'queued' : delivery === 'steer' ? 'steered' : 'delivered', createdAt: iso(Date.now()), updatedAt: iso(Date.now()), ...(shots.length && { data: { images: shots } }) });
+  const e = ev('prompt', 6, { title: 'Your message', text: `${text}`, by: owner, status: busy && delivery === 'queue' ? 'queued' : delivery === 'steer' ? 'steered' : 'delivered', createdAt: iso(Date.now()), updatedAt: iso(Date.now()), ...(files.length && { data: { attachments: files } }) });
   events.push(e);
   queueMicrotask(() => fake.push('eventAdded', e));
   return e;

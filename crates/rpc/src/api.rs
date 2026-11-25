@@ -81,12 +81,12 @@ impl Handler for Api {
         crate::link_report::keep(&self.o, Sender::Owner, report, &self.faults).await
     }
 
-    async fn image_put(&self, id: String, home: String, image: model::Image) -> Result<Ack, Failure> {
-        done("image_put", self.o.core.put_image(id, home, image).await)
+    async fn attachment_put(&self, id: String, home: String, attachment: model::Attachment) -> Result<Ack, Failure> {
+        done("attachment_put", self.o.core.put_attachment(id, home, attachment).await)
     }
 
-    async fn image_get(&self, id: String) -> Result<model::Image, Failure> {
-        returned("image_get", self.o.core.image(id).await)
+    async fn attachment_get(&self, id: String) -> Result<model::Attachment, Failure> {
+        returned("attachment_get", self.o.core.attachment(id).await)
     }
 
     async fn chains_archived(&self, after: String) -> Result<ChainPage, Failure> {

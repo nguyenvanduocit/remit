@@ -3,6 +3,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, Weak};
 use std::time::Duration;
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use jiff::Timestamp;
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -122,6 +124,15 @@ impl ClaudeLauncher {
         let mut o = options(spec, &repository_root(&spec.cwd));
         o.hide.clone_from(&self.hide);
         o.read_only = self.read_only.iter().chain(&spec.read_only).cloned().collect();
+        let attachments = tempfile::Builder::new()
+            .prefix("remit-attachments-")
+            .tempdir()
+            .map_err(|e| Error::Prepare(format!("the session's attachment directory: {e}")))?;
+        let attachment_path = attachments
+            .path()
+            .canonicalize()
+            .map_err(|e| Error::Prepare(format!("the session's attachment path: {e}")))?;
+        o.read_only.push(attachment_path.to_string_lossy().into_owned());
         let (servers, values) = by_reference(&spec.mcp);
         o.mcp_servers = mcp_config(servers);
         o.command.clone_from(&self.command);
@@ -172,6 +183,7 @@ impl ClaudeLauncher {
             lost: false,
             conn,
             shared,
+            attachments,
             mover,
             keeping: Mutex::new(None),
         })
@@ -189,6 +201,7 @@ struct ClaudeSession {
     /// still ends it.
     conn: Arc<claudecode::Conn>,
     shared: Arc<Shared>,
+    attachments: tempfile::TempDir,
     /// What moves the session onto another account's login; none for a session of a plugin's account.
     mover: Option<Mover>,
     /// The task keeping the token of the account the session last moved to fresh.
@@ -355,6 +368,7 @@ impl Session for ClaudeSession {
                 shared: &self.shared,
                 serial,
             };
+            let prompt = self.stage_attachments(prompt, &uuid).await?;
             let m = user_message(prompt, Some(uuid), None);
             self.conn.send(&m).await?;
             ended.await.unwrap_or(Err(Error::Ended(None)))
@@ -365,10 +379,14 @@ impl Session for ClaudeSession {
     /// for its answer, after it (later), since interrupting that request withdraws it. False when no turn runs.
     fn steer(&self, prompt: Prompt) -> BoxFuture<'_, Result<bool, Error>> {
         Box::pin(async move {
+            let uuid = new_session_id();
+            let active = self.shared.state().turn.as_ref().map(|turn| turn.serial);
+            let Some(serial) = active else { return Ok(false) };
+            let prompt = self.stage_attachments(prompt, &uuid).await?;
             let m = {
                 let mut state = self.shared.state();
                 let asking = state.asking;
-                let Some(turn) = state.turn.as_mut() else {
+                let Some(turn) = state.turn.as_mut().filter(|turn| turn.serial == serial) else {
                     return Ok(false);
                 };
                 let priority = if asking > 0 {
@@ -376,8 +394,8 @@ impl Session for ClaudeSession {
                 } else {
                     claudecode::Priority::Now
                 };
-                turn.last = new_session_id();
-                user_message(prompt, Some(turn.last.clone()), Some(priority))
+                turn.last.clone_from(&uuid);
+                user_message(prompt, Some(uuid), Some(priority))
             };
             self.conn.send(&m).await?;
             Ok(true)
@@ -1275,6 +1293,42 @@ impl TokenUsage {
 
 fn new_session_id() -> String {
     uuid::Uuid::new_v4().to_string()
+}
+
+impl ClaudeSession {
+    /// Makes the uploaded bytes available to the running session as read-only files.
+    async fn stage_attachments(&self, mut prompt: Prompt, uuid: &str) -> Result<Prompt, Error> {
+        if prompt.files.is_empty() {
+            return Ok(prompt);
+        }
+        let directory = self.attachments.path().join(uuid);
+        let stage_error = |e: std::io::Error| Error::TurnFailed(format!("stage message attachments: {e}"));
+        tokio::fs::create_dir(&directory).await.map_err(stage_error)?;
+        let mut paths = Vec::new();
+        for (index, file) in std::mem::take(&mut prompt.files).into_iter().enumerate() {
+            let name = file
+                .name
+                .chars()
+                .map(|c| {
+                    if matches!(c, '/' | '\\') || c.is_control() {
+                        '_'
+                    } else {
+                        c
+                    }
+                })
+                .collect::<String>();
+            let name = &name[..name.floor_char_boundary(230)];
+            let path = directory.join(format!("{index}-{name}"));
+            let bytes = STANDARD
+                .decode(file.data)
+                .map_err(|e| Error::TurnFailed(format!("decode message attachment: {e}")))?;
+            tokio::fs::write(&path, bytes).await.map_err(stage_error)?;
+            paths.push(path.to_string_lossy().into_owned());
+        }
+        prompt.text.push_str("\n\nUploaded files (read-only paths): ");
+        prompt.text.push_str(&serde_json::json!(paths).to_string());
+        Ok(prompt)
+    }
 }
 
 /// What the agent reads of prompt, as Claude Code takes a message: its words, then its images.

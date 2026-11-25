@@ -7,6 +7,7 @@
 //! (`Store::read`), each in one read transaction.
 
 mod accounts;
+mod attachments;
 mod catalog;
 mod changes;
 mod client_key;
@@ -19,7 +20,6 @@ mod extensions;
 mod feedback;
 mod grant;
 mod homes;
-mod images;
 mod judgments;
 mod landings;
 mod library;

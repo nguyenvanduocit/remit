@@ -12,10 +12,10 @@ use serde::{Deserialize, Serialize};
 use store::Reader;
 
 use crate::apply::{Applied, Records};
+use crate::attachments::with_attachments;
 use crate::chain_core::Core;
 use crate::chain_core::new_id;
 use crate::homes::ASSISTANT_ID_PREFIX;
-use crate::images::with_images;
 use crate::outbox::{Message, owner_message};
 use crate::prompts::{language_line, principles_line};
 use crate::recap::{RECAP_EVENTS, what_happened};
@@ -496,7 +496,7 @@ impl Core {
                 let data = serde_json::json!({"placed": Placed { at, label }});
                 m.data = Some(model::ForeignJson(data));
             }
-            m.data = with_images(m.data, &d.images);
+            m.data = with_attachments(m.data, &d.attachments);
             o.owner_says(
                 &to,
                 m,

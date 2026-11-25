@@ -99,7 +99,7 @@ export const permissionAsk = (fields: Pick<PermissionAsk, 'action' | 'reason' | 
 
 /** A draft: its id, home, words and time; the card it is to, as the case needs. */
 export const draftRecord = (fields: Pick<Draft, 'id' | 'home' | 'text' | 'updatedAt'> & Partial<Draft>): Draft => ({
-  images: [], cardId: '', mentor: '', rev: 1,
+  attachments: [], cardId: '', mentor: '', rev: 1,
   ...fields,
 });
 

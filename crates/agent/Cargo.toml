@@ -9,6 +9,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+base64 = "0.22.1"
+tempfile = "3.27.0"
 claudecode = { path = "../claudecode" }
 claudehooks = { path = "../claudehooks" }
 jiff = "0.2.16"
@@ -18,7 +20,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 thiserror = "2.0.21"
 time = "0.3.55"
-tokio = { version = "1.54.1", features = ["sync", "rt", "macros", "time"] }
+tokio = { version = "1.54.1", features = ["sync", "rt", "macros", "time", "fs"] }
 uuid = { version = "1.18.1", features = ["v4"] }
 # What a session reports, declared once by the runtime contract (ADR-0107 decision 4).
 wire = { path = "../wire" }

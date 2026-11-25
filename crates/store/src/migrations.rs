@@ -132,4 +132,5 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0128.sql"),
     include_str!("../migrations/0129.sql"),
     include_str!("../migrations/0130.sql"),
+    include_str!("../migrations/0131.sql"),
 ];

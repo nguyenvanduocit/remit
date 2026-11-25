@@ -2,7 +2,7 @@
 import { computed, ref, useId } from 'vue';
 import { useAct } from '../act';
 import { useDraftBox } from '../drafts';
-import { imageUrl, putImages } from '../images';
+import { imageUrl, isInlineImage, putAttachment } from '../attachments';
 import { messageOf, toast } from '../act';
 import type { AgentStanding, Ask, Card, Delivery } from '../core/generated/types.generated';
 import type { Call } from '../core/client';
@@ -43,27 +43,30 @@ const parent = computed(() => {
 
 let delivery: Delivery = 'queue'; // the choice of the send on its way: the box's send reads it
 const message = useDraftBox(() => ({ home: props.card.home, cardId: props.card.id }), (draftId) => deliver(draftId, delivery));
-const { text: draft, images } = message;
-const unsent = computed(() => draft.value.trim() !== '' || images.value.length > 0);
-// Images go with the words: picked, pasted or dropped, each is put on the server and named by the draft at once.
+const { text: draft, attachments } = message;
+const unsent = computed(() => draft.value.trim() !== '' || attachments.value.length > 0);
 const picker = ref<HTMLInputElement>();
 const putting = ref(0);
 async function attach(files: readonly File[]) {
-  const shots = files.filter((f) => f.type.startsWith('image/'));
-  if (!shots.length) return;
-  putting.value += shots.length;
-  try {
-    const put = await putImages(shots, props.card.home);
-    images.value = [...images.value, ...put];
-  } catch (e) {
-    toast(`The image was not added: ${messageOf(e)}`);
-  } finally {
-    putting.value -= shots.length;
+  const home = props.card.home;
+  const cardId = props.card.id;
+  putting.value += files.length;
+  for (const file of files) {
+    try {
+      const attachment = await putAttachment(file, home);
+      if (props.card.id === cardId && props.card.home === home) {
+        attachments.value = [...attachments.value, attachment];
+      }
+    } catch (e) {
+      toast(`Could not attach ${file.name}: ${messageOf(e)}`);
+    } finally {
+      putting.value--;
+    }
   }
 }
 function onPaste(e: ClipboardEvent) {
   const files = Array.from(e.clipboardData?.files ?? []);
-  if (!files.some((f) => f.type.startsWith('image/'))) return;
+  if (!files.length) return;
   e.preventDefault();
   void attach(files);
 }
@@ -76,11 +79,11 @@ function onPick(e: Event) {
   void attach(Array.from(input.files ?? []));
   input.value = '';
 }
-const unattach = (id: string) => (images.value = images.value.filter((i) => i.id !== id));
+const unattach = (id: string) => (attachments.value = attachments.value.filter((i) => i.id !== id));
 // The box never holds: the words leave it at once for a pending row at the end of the stream, which says how they go
 // (ADR-0094; AgentDrawer shows them, so the box never moves).
 function sendAs(how: Delivery) {
-  if (putting.value) return; // an image still on its way would be left out
+  if (putting.value) return; // an attachment still on its way would be left out
   delivery = how;
   void message.send();
   emit('sent');
@@ -113,12 +116,15 @@ async function stop(why: string) {
       @dragover.prevent
       @drop.prevent="onDrop"
     >
-      <ul v-if="images.length || putting" class="flex flex-wrap gap-2 px-3 pt-2.5" aria-label="Images in this message" data-images>
-        <li v-for="(i, n) in images" :key="i.id" class="shot relative">
-          <img :src="imageUrl(i.id)" :alt="`Image ${n + 1}`" class="size-14 rounded-md border border-line object-cover" />
-          <button type="button" class="unattach" :aria-label="`Remove image ${n + 1}`" @click="unattach(i.id)"><Icon name="x" :size="10" /></button>
+      <ul v-if="attachments.length || putting" class="flex flex-wrap gap-2 px-3 pt-2.5" aria-label="Attachments in this message" data-attachments>
+        <li v-for="(i, n) in attachments" :key="i.id" class="relative min-w-0 max-w-full">
+          <img v-if="isInlineImage(i.mediaType)" :src="imageUrl(i.id)" :alt="i.name || `Image ${n + 1}`" class="size-14 rounded-md border border-line object-cover" />
+          <span v-else class="flex max-w-full items-center gap-1.5 rounded-md border border-line px-2 py-1.5 pr-4 text-xs" :title="i.name">
+            <Icon name="paperclip" :size="13" class="shrink-0" /><span class="truncate">{{ i.name }}</span>
+          </span>
+          <button type="button" class="unattach" :aria-label="`Remove ${i.name || `image ${n + 1}`}`" @click="unattach(i.id)"><Icon name="x" :size="10" /></button>
         </li>
-        <li v-if="putting" class="flex size-14 items-center justify-center rounded-md border border-dashed border-line2 text-mut" aria-live="polite"><Spinner :size="14" /><span class="sr-only">Adding image…</span></li>
+        <li v-if="putting" class="flex size-14 items-center justify-center rounded-md border border-dashed border-line2 text-mut" aria-live="polite"><Spinner :size="14" /><span class="sr-only">Uploading attachments…</span></li>
       </ul>
       <Textarea
         v-model="draft"
@@ -131,9 +137,9 @@ async function stop(why: string) {
         @paste="onPaste"
       />
       <div class="flex flex-wrap items-center gap-1.5 px-2 pt-1 pb-2">
-        <input ref="picker" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple class="hidden" @change="onPick" />
-        <Tip text="Add images (or paste or drop them in the box)">
-          <Button variant="ghost" size="icon-sm" class="text-mut" aria-label="Add images" data-attach @click="picker?.click()"><Icon name="image" :size="14" /></Button>
+        <input ref="picker" type="file" multiple class="hidden" @change="onPick" />
+        <Tip text="Attach files (or paste or drop them in the box)">
+          <Button variant="ghost" size="icon-sm" class="text-mut" aria-label="Attach files" data-attach @click="picker?.click()"><Icon name="paperclip" :size="14" /></Button>
         </Tip>
         <Tip v-if="agent.stopSays" :text="down ?? agent.stopSays">
           <Button variant="ghost" size="sm" class="text-mut hover:bg-red-tint hover:text-red-text aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:hover:bg-red-tint" :aria-disabled="!!down" :data-down="!!down || undefined" @click="down || (confirmStop = true)"><Icon name="stop" :size="12" />Stop agent…</Button>
@@ -145,8 +151,8 @@ async function stop(why: string) {
             <Button variant="outline" size="sm" class="rounded-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50" :aria-disabled="!!down" :data-down="!!down || undefined" @click="down || act('cardCancel', [card.id], 'Turn interrupted')"><Icon name="interrupt" :size="13" />Interrupt</Button>
           </Tip>
           <template v-if="unsent">
-            <Tip v-if="can('steer')" text="Put this into the turn in progress: the agent reads it at its next step"><Button variant="outline" size="sm" class="rounded-full" data-send="steer" @click="sendAs('steer')">Steer</Button></Tip>
-            <Tip v-if="can('interrupt')" text="End the turn in progress: the agent reads this next"><Button variant="outline" size="sm" class="rounded-full" data-send="interrupt" @click="sendAs('interrupt')">Interrupt and send</Button></Tip>
+            <Tip v-if="can('steer')" text="Put this into the turn in progress: the agent reads it at its next step"><Button variant="outline" size="sm" class="rounded-full" :disabled="!!putting" data-send="steer" @click="sendAs('steer')">Steer</Button></Tip>
+            <Tip v-if="can('interrupt')" text="End the turn in progress: the agent reads this next"><Button variant="outline" size="sm" class="rounded-full" :disabled="!!putting" data-send="interrupt" @click="sendAs('interrupt')">Interrupt and send</Button></Tip>
           </template>
           <Button v-if="unsent || !can('interrupt')" size="sm" class="rounded-full pl-3" :disabled="!unsent || !!putting" data-send="queue" @click="sendAs('queue')">Send<Icon name="arrow-up" :size="13" /></Button>
         </div>

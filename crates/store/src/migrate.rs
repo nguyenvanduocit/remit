@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use rusqlite::functions::FunctionFlags;
 use rusqlite::{Connection, TransactionBehavior, params};
 use sha2::{Digest, Sha256};
 
@@ -31,6 +32,9 @@ pub(crate) fn migrate(c: &mut Connection, ms: &[&str]) -> Result<()> {
             numbers.join(", ")
         )));
     }
+    tx.create_scalar_function("unpack_event", 1, FunctionFlags::SQLITE_DETERMINISTIC, |ctx| {
+        crate::pack::unpack(ctx.get_raw(0).as_blob()?).map_err(|e| rusqlite::Error::UserFunctionError(Box::new(e)))
+    })?;
     for (v, m) in (1_i64..).zip(ms) {
         if v > version {
             tx.execute_batch(m)
@@ -45,6 +49,7 @@ pub(crate) fn migrate(c: &mut Connection, ms: &[&str]) -> Result<()> {
     }
     tx.pragma_update(None, "user_version", known)?;
     tx.commit()?;
+    c.remove_function("unpack_event", 1)?;
     Ok(())
 }
 

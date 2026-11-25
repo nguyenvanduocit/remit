@@ -22,7 +22,7 @@ pub const HOME_RECORDS: &[(&str, &str)] = &[
     // the grants a chain holds; a repository's are kept (`grants.chain_id` is null for them)
     ("grants", "chain_id"),
     ("helps", "chain"),
-    ("images", "home"),
+    ("attachments", "home"),
     ("inbox", "home"),
     ("retrospectives", "chain_id"),
     ("second_opinions", "chain"),

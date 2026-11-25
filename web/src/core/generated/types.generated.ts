@@ -261,8 +261,8 @@ export type EventData = {
   command?: string;
   readable?: boolean;
   stoppable?: boolean;
-  /** The images a message holds, read with `image_get`. */
-  images?: ImageRef[];
+  /** The attachments a message holds, read with `attachment_get`. */
+  attachments?: AttachmentRef[];
 };
 
 /** Where the owner was as he wrote to the Assistant, and the server's words for it. */
@@ -542,8 +542,8 @@ export type DraftInput = {
   id: string;
   home: string;
   text: string;
-  /** A message's images, put first with `image_put`. */
-  images: ImageRef[];
+  /** A message's attachments, put first with `attachment_put`. */
+  attachments: AttachmentRef[];
   /** The card it is to. */
   cardId: string;
 };
@@ -2267,18 +2267,17 @@ export type Feedback = {
   rev: number;
 };
 
-/** The kinds of image a model reads. */
-export type ImageType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
-
-/** An image a message holds: the id of its stored bytes, and their kind. */
-export type ImageRef = {
+/** An attachment a message holds: the id of its stored bytes and its display metadata. */
+export type AttachmentRef = {
   id: string;
-  mediaType: ImageType;
+  mediaType: string;
+  name: string;
 };
 
-/** An image's bytes, base64, the form a model and a page both take them in. */
-export type Image = {
-  mediaType: ImageType;
+/** The bytes of an attachment, base64, with its filename and media type. */
+export type Attachment = {
+  name: string;
+  mediaType: string;
   data: string;
 };
 
@@ -3659,8 +3658,8 @@ export type Draft = {
   id: string;
   home: string;
   text: string;
-  /** A message's images, in the order they show (`Image`'s bytes are stored apart). */
-  images: ImageRef[];
+  /** A message's attachments, in the order they show (their bytes are stored apart). */
+  attachments: AttachmentRef[];
   /** The card it is to. */
   cardId: string;
   /** Who writes it: a mentor's id; empty for the owner's. A writer reads, saves and sends only their own (ADR-0089). */

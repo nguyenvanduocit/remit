@@ -42,7 +42,7 @@ export function fakeDrafts(key: string, push: Push, seed: Draft[] = []) {
         const { ended: _, ...current } = held;
         throw { code: 'CONFLICT', message: 'the draft changed on another page since this one read it: nothing was saved', detail: { kind: 'draft_conflict', current } };
       }
-      const saved: Draft = held ? { ...held, text: d.text, images: d.images, rev: held.rev + 1, updatedAt: asked.updatedAt } : asked;
+      const saved: Draft = held ? { ...held, text: d.text, attachments: d.attachments, rev: held.rev + 1, updatedAt: asked.updatedAt } : asked;
       keep([...all.filter((r) => r.id !== saved.id), saved]);
       tell({ draft: saved });
       return saved;

@@ -5,7 +5,7 @@
 // they were made, and sends drafts only once the server has what was typed in them (replica.ts). Read and asked here.
 import { computed, toValue, type MaybeRefOrGetter } from 'vue';
 import type { Call } from './core/client';
-import type { Draft, DraftInput, ImageRef } from './core/generated/types.generated';
+import type { Draft, DraftInput, AttachmentRef } from './core/generated/types.generated';
 import type { Pending } from './core/generated/replica/types.generated';
 import { assistant } from './assistant';
 import { opened } from './openChain';
@@ -21,7 +21,7 @@ const outgoing = computed(() => new Set(outbox.value.flatMap((p) => p.drafts)));
 /** The owner's sends on their way that wait for the link, for the banner's count. */
 export const queued = computed(() => outbox.value.filter((p) => p.status === 'waiting').length);
 
-// An id the page names before the server has the thing (an image being put): 128 random bits.
+// An id the page names before the server has the thing (an attachment being uploaded): 128 random bits.
 export const newDraftId = (): string => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 
 // The words a draft shows: what the owner typed, else what the server has.
@@ -44,14 +44,14 @@ function draftsOf(home: string): readonly Draft[] {
 export type Box = { home: string; cardId: string };
 const inBox = (b: Box) => (d: DraftInput) => d.home === b.home && d.cardId === b.cardId;
 
-// The draft in a box: the words and images typed in it, else the server's; none until the owner writes. A draft being
+// The draft in a box: the words and attachments typed in it, else the server's; none until the owner writes. A draft being
 // sent is not in its box: it shows as a pending row (the box's `pending`).
-type Held = { id?: string; text: string; images: ImageRef[] };
+type Held = { id?: string; text: string; attachments: AttachmentRef[] };
 function boxDraft(b: Box): Held {
   const mine = (d: DraftInput) => inBox(b)(d) && !outgoing.value.has(d.id);
-  for (const d of typed.value) if (mine(d)) return { id: d.id, text: d.text, images: d.images ?? [] };
+  for (const d of typed.value) if (mine(d)) return { id: d.id, text: d.text, attachments: d.attachments ?? [] };
   const stored = draftsOf(b.home).find(mine);
-  return stored ? { id: stored.id, text: stored.text, images: stored.images } : { text: '', images: [] };
+  return stored ? { id: stored.id, text: stored.text, attachments: stored.attachments } : { text: '', attachments: [] };
 }
 
 // Where a box's sends show: its name among the boxes of the page.
@@ -68,10 +68,10 @@ export const unsend = (id: string): void => ask({ ask: 'unsend', id });
 export function prefill(box: Box, words: string): void {
   const held = boxDraft(box);
   if (held.text.trim()) return;
-  write({ ...box, id: held.id ?? '', text: words, images: held.images });
+  write({ ...box, id: held.id ?? '', text: words, attachments: held.attachments });
 }
 
-// The owner's words and images in a box, saved as he writes them, the send that delivers them by the draft's id (`call` names it),
+// The owner's words and attachments in a box, saved as he writes them, the send that delivers them by the draft's id (`call` names it),
 // and the box's sends on their way (`pending`). `send` never holds the box: the words leave it at once for a pending
 // row, and go when the link is up (the core's outbox, ADR-0094). It answers whether they went; when they did not, the
 // row says why and the owner tries again or takes them back to edit.
@@ -79,22 +79,22 @@ export function useDraftBox(box: MaybeRefOrGetter<Box>, call: (draftId: string) 
   const current = computed(() => boxDraft(toValue(box)));
   const text = computed({
     get: () => current.value.text,
-    set: (words: string) => write({ ...toValue(box), id: current.value.id ?? '', text: words, images: current.value.images }),
+    set: (words: string) => write({ ...toValue(box), id: current.value.id ?? '', text: words, attachments: current.value.attachments }),
   });
-  const images = computed({
-    get: () => current.value.images,
-    set: (images: ImageRef[]) => write({ ...toValue(box), id: current.value.id ?? '', text: current.value.text, images }),
+  const attachments = computed({
+    get: () => current.value.attachments,
+    set: (attachments: AttachmentRef[]) => write({ ...toValue(box), id: current.value.id ?? '', text: current.value.text, attachments }),
   });
   const pending = pendingIn(box);
   function send(): Promise<boolean> {
     const id = current.value.id;
     const words = text.value.trim();
-    const shown = words || (images.value.length ? `${images.value.length === 1 ? 'An image' : `${images.value.length} images`}` : '');
+    const shown = words || (attachments.value.length ? `${attachments.value.length === 1 ? 'An attachment' : `${attachments.value.length} attachments`}` : '');
     if (!id || !shown) return Promise.resolve(false);
     return sendDrafts([id], call(id), boxKey(toValue(box)), shown).then(
       () => true,
       () => false,
     );
   }
-  return { text, images, pending, send };
+  return { text, attachments, pending, send };
 }

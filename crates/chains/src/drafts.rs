@@ -30,7 +30,7 @@ impl Core {
     pub async fn keep_draft(&self, d: Draft, base_rev: i64) -> Result<Draft> {
         check_draft(&d)?;
         self.check_draft_is_of_its_chain(&d).await?;
-        self.check_draft_images(&d).await?;
+        self.check_draft_attachments(&d).await?;
         let key = d.id.clone();
         match self.store.read(move |r| r.draft(&key)).await {
             Ok(held) if held.mentor != d.mentor => return Err(draft_not_yours(&d.id)),
@@ -145,8 +145,8 @@ fn check_draft(d: &Draft) -> Result<()> {
     if d.home.is_empty() {
         return refuse("a draft is in a chain, or for the Assistant");
     }
-    if d.text.trim().is_empty() && d.images.is_empty() {
-        return refuse("a draft holds words or images: delete it instead");
+    if d.text.trim().is_empty() && d.attachments.is_empty() {
+        return refuse("a draft holds words or attachments: delete it instead");
     }
     if d.card_id.is_empty() {
         return refuse("a message is to an agent");

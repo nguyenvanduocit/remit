@@ -3,10 +3,10 @@
 //! the server writes them. `rev` on a record counts its stored changes: of two copies, the higher wins.
 
 use model::{
-    AccountKind, ActionKind, Actor, Agent, Assistant, Card, Chain, ChainStatus, Change, ChangeKind, ClientKey,
-    ContextCount, ContextGiven, Control, Decision, Draft, Edge, Employee, Event, EventKind, EventSignal, EventVia,
-    Extension, Feedback, FeedbackKind, Finding, FindingStatus, ForeignJson, Help, Hold, Image, ImageRef, InboundEvent,
-    InboxItem, InitReport, Landing, Memory, Mentor, NearMiss, ObjectiveView, OutcomeRange, OutcomeReport,
+    AccountKind, ActionKind, Actor, Agent, Assistant, Attachment, AttachmentRef, Card, Chain, ChainStatus, Change,
+    ChangeKind, ClientKey, ContextCount, ContextGiven, Control, Decision, Draft, Edge, Employee, Event, EventKind,
+    EventSignal, EventVia, Extension, Feedback, FeedbackKind, Finding, FindingStatus, ForeignJson, Help, Hold,
+    InboundEvent, InboxItem, InitReport, Landing, Memory, Mentor, NearMiss, ObjectiveView, OutcomeRange, OutcomeReport,
     OutcomeWindow, Playbook, Project, Release, ReleasePause, Retrospective, Sensor, Source, Teaching, Time,
     VerdictRole, Where, Workflow,
 };
@@ -363,9 +363,9 @@ pub struct EventData {
     pub readable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stoppable: Option<bool>,
-    /// The images a message holds, read with `image_get`.
+    /// The attachments a message holds, read with `attachment_get`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub images: Option<Vec<ImageRef>>,
+    pub attachments: Option<Vec<AttachmentRef>>,
 }
 
 /// Where the owner was as he wrote to the Assistant, and the server's words for it.
@@ -686,9 +686,9 @@ pub struct DraftInput {
     pub id: String,
     pub home: String,
     pub text: String,
-    /// A message's images, put first with `image_put`.
+    /// A message's attachments, put first with `attachment_put`.
     #[serde(default)]
-    pub images: Vec<ImageRef>,
+    pub attachments: Vec<AttachmentRef>,
     /// The card it is to.
     pub card_id: String,
 }
@@ -700,7 +700,7 @@ impl From<DraftInput> for Draft {
             id: d.id,
             home: d.home,
             text: d.text,
-            images: d.images,
+            attachments: d.attachments,
             card_id: d.card_id,
             ..Self::default()
         }
@@ -2289,8 +2289,8 @@ link::contract! {
         /// Lays out the chains whose seats were not laid out since the server started, then answers.
         at_work() -> AtWork, why = "reads every seat at work now";
         employee_runs(id: String) -> EmployeeRuns, why = "reads one employee's runs across chains";
-        /// An image a message or a draft holds, by the id it was put with.
-        image_get(id: String) -> Image, why = "reads one image's bytes";
+        /// An attachment a message or a draft holds, by the id it was put with.
+        attachment_get(id: String) -> Attachment, why = "reads one attachment's bytes";
         /// `repo` is the repository's catalog id; `repo_updated` brings each change of the view.
         repo_get(repo: String) -> RepoView, why = "reads one repository's queue and releases";
     }
@@ -2375,9 +2375,9 @@ link::contract! {
     idempotent {
         /// What the page's core counted on the link in a minute (ADR-0095 decision 12).
         link_report(report: LinkReport) -> Ack, why = "a report sent again is kept once, by its page and minute";
-        /// Keeps an image's bytes (base64, at most `IMAGE_MAX_BYTES`) for a draft of `home` to hold by `id`, which the
+        /// Keeps an attachment's bytes (base64, at most `ATTACHMENT_MAX_BYTES`) for a draft of `home` to hold by `id`, which the
         /// channel makes.
-        image_put(id: String, home: String, image: Image) -> Ack, why = "an id put again keeps the bytes it was first put with";
+        attachment_put(id: String, home: String, attachment: Attachment) -> Ack, why = "an id put again keeps the bytes it was first put with";
     }
     pushes {
         chain_updated(chain: ChainRead);

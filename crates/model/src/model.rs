@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 use crate::text_enum;
-use crate::{Actor, EventStatus, ForeignJson, ImageRef, Loadout, Priority, Serves, Signs, StagePlan, Time};
+use crate::{Actor, AttachmentRef, EventStatus, ForeignJson, Loadout, Priority, Serves, Signs, StagePlan, Time};
 
 text_enum! {
     #[derive(Default)]
@@ -1124,8 +1124,8 @@ pub struct Draft {
     pub id: String,
     pub home: String,
     pub text: String,
-    /// A message's images, in the order they show (`Image`'s bytes are stored apart).
-    pub images: Vec<ImageRef>,
+    /// A message's attachments, in the order they show (their bytes are stored apart).
+    pub attachments: Vec<AttachmentRef>,
     /// The card it is to.
     pub card_id: String,
     /// Who writes it: a mentor's id; empty for the owner's. A writer reads, saves and sends only their own (ADR-0089).

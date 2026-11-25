@@ -25,8 +25,8 @@ async fn an_empty_database_migrates_to_the_last_and_opens_again_unchanged() {
     let dir = tempfile::tempdir().unwrap();
     let path = db(&dir);
     Store::open(&path).unwrap().close().unwrap();
-    assert_eq!(peek(&path, "PRAGMA user_version").unwrap(), 130);
-    assert_eq!(peek(&path, "SELECT count(*) FROM schema_migrations").unwrap(), 130);
+    assert_eq!(peek(&path, "PRAGMA user_version").unwrap(), 131);
+    assert_eq!(peek(&path, "SELECT count(*) FROM schema_migrations").unwrap(), 131);
     let objects = peek(
         &path,
         "SELECT count(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'",
@@ -53,7 +53,10 @@ async fn an_empty_database_migrates_to_the_last_and_opens_again_unchanged() {
 fn as_an_earlier_build_left_it(path: &Path, version: i64, rows: &str) -> Result<(), Box<dyn std::error::Error>> {
     Store::open(path)?.close()?;
     Connection::open(path)?.execute_batch(&format!(
-        "DELETE FROM schema_migrations WHERE version > {version}; PRAGMA user_version = {version}; {rows}"
+        "DELETE FROM schema_migrations WHERE version > {version}; PRAGMA user_version = {version};
+        ALTER TABLE attachments DROP COLUMN name; ALTER TABLE attachments RENAME TO images;
+        DROP INDEX attachments_home; CREATE INDEX images_home ON images(home);
+        {rows}"
     ))?;
     Ok(())
 }
@@ -1352,4 +1355,44 @@ INSERT INTO events(home, card_id, kind, status, title, text, created_at, updated
             (Some(model::Cut::Slept), Some("t2".into())),
         ]
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_existing_image_remains_attached_to_its_draft_and_packed_message() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = db(&dir);
+    as_an_earlier_build_left_it(
+        &path,
+        130,
+        r#"
+INSERT INTO images(id, home, media_type, bytes, at) VALUES('im_old','c','image/png',x'89504e47',0);
+INSERT INTO drafts(id, home, at, doc) VALUES('d','c',0,'{"id":"d","home":"c","cardId":"k","images":[{"id":"im_old","mediaType":"image/png"}]}');
+"#,
+    )
+    .unwrap();
+    let mut packed = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+    packed
+        .write_all(br#"{"ownerWords":true,"images":[{"id":"im_old","mediaType":"image/png"}]}"#)
+        .unwrap();
+    Connection::open(&path)
+        .unwrap()
+        .execute(
+            "INSERT INTO events(home,card_id,kind,status,created_at,updated_at,data) VALUES('c','k','prompt','delivered',0,0,?)",
+            [packed.finish().unwrap()],
+        )
+        .unwrap();
+
+    let s = Store::open(&path).unwrap();
+    let (draft, message, attachment) = s
+        .read(|r| Ok::<_, Error>((r.draft("d")?, r.event(1)?, r.attachment("im_old")?)))
+        .await
+        .unwrap();
+    assert_eq!(draft.attachments[0].id, "im_old");
+    let data = message.data.unwrap().0;
+    assert_eq!(data["attachments"][0]["id"], "im_old");
+    assert_eq!(data["ownerWords"], true);
+    assert!(data.get("images").is_none());
+    assert_eq!(attachment, (String::new(), "image/png".into(), b"\x89PNG".to_vec()));
 }

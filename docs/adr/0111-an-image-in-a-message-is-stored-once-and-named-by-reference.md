@@ -1,6 +1,6 @@
 # 0111. An image in a message is stored once and named by reference
 
-Status: accepted
+Status: superseded by ADR-0130
 
 ## Context
 

@@ -23,7 +23,7 @@ use crate::Ack;
 
 /// The contract's number. Additive changes keep it; any other change bumps it, and the core refuses a runtime that says
 /// another number.
-pub const RUNTIME_CONTRACT: i64 = 4;
+pub const RUNTIME_CONTRACT: i64 = 5;
 
 text_enum! {
     /// What part of the provider failed a turn.

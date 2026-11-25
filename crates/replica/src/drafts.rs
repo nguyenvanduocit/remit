@@ -9,7 +9,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use link::{ErrorCode, Failure, Millis};
-use model::{Draft, FailureDetail, ImageRef};
+use model::{AttachmentRef, Draft, FailureDetail};
 use serde_json::Value;
 use wire::app::{DraftInput, client};
 
@@ -179,7 +179,13 @@ impl Drafts {
     }
 
     /// What an earlier page kept of a draft's words: held, and saved after a pause (a send saves it first).
-    pub(crate) fn restore(&mut self, now: Millis, kept: KeptDraft, out: &mut Out) {
+    pub(crate) fn restore(&mut self, now: Millis, mut kept: KeptDraft, out: &mut Out) {
+        // A send kept by the image-only composer still names the same uploads after migration 0131.
+        if let Some(fields) = kept.draft.as_object_mut()
+            && let Some(images) = fields.remove("images")
+        {
+            fields.entry("attachments").or_insert(images);
+        }
         // A kept draft this build cannot read is dropped: its send then fails, and says so, with its words in its row.
         if let Ok(draft) = read::<DraftInput>(&kept.draft) {
             self.hold(now, draft, kept.draft, kept.base_rev, out);
@@ -330,7 +336,7 @@ impl Drafts {
             // The send ends it; what is typed meanwhile becomes a new draft once it has.
             return Some(true);
         }
-        let blank = typed.draft.text.trim().is_empty() && typed.draft.images.is_empty();
+        let blank = typed.draft.text.trim().is_empty() && typed.draft.attachments.is_empty();
         if !calls.live() {
             self.timers.insert(id.to_owned(), calls.now.saturating_add(RETRY));
             return Some(false);
@@ -438,13 +444,13 @@ impl Drafts {
             return;
         };
         let text = joined(&current.text, &typed.draft.text);
-        let images = joined_images(&current.images, &typed.draft.images);
+        let attachments = joined_attachments(&current.attachments, &typed.draft.attachments);
         let (mut draft, mut json) = with_id(typed.draft, typed.json, &current.id);
         draft.text.clone_from(&text);
-        draft.images.clone_from(&images);
+        draft.attachments.clone_from(&attachments);
         if let Some(fields) = json.as_object_mut() {
             fields.insert("text".to_owned(), Value::String(text));
-            fields.insert("images".to_owned(), serde_json::json!(images));
+            fields.insert("attachments".to_owned(), serde_json::json!(attachments));
         }
         self.hold(now, draft, json, current.rev, out);
     }
@@ -522,8 +528,8 @@ fn joined(server: &str, typed: &str) -> String {
     }
 }
 
-/// The images of a draft two pages wrote: the server's, then those typed here that it lacks.
-fn joined_images(server: &[ImageRef], typed: &[ImageRef]) -> Vec<ImageRef> {
+/// The attachments of a draft two pages wrote: the server's, then those typed here that it lacks.
+fn joined_attachments(server: &[AttachmentRef], typed: &[AttachmentRef]) -> Vec<AttachmentRef> {
     let mut out = server.to_vec();
     out.extend(typed.iter().filter(|t| !server.iter().any(|s| s.id == t.id)).cloned());
     out
