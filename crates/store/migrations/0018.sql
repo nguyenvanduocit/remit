@@ -1,0 +1,23 @@
+
+ALTER TABLE cards RENAME COLUMN chain_id TO home;
+ALTER TABLE events RENAME COLUMN chain_id TO home;
+ALTER TABLE usage RENAME COLUMN chain_id TO home;
+ALTER TABLE drafts RENAME COLUMN chain_id TO home;
+ALTER TABLE inbox RENAME COLUMN chain_id TO home;
+ALTER TABLE session_inits RENAME COLUMN chain_id TO home;
+DROP INDEX cards_chain;
+CREATE INDEX cards_home ON cards(home, created_at);
+DROP INDEX events_chain;
+CREATE INDEX events_home ON events(home, id);
+DROP INDEX usage_chain;
+CREATE INDEX usage_home ON usage(home);
+DROP INDEX drafts_chain;
+CREATE INDEX drafts_home ON drafts(home, at);
+DROP INDEX inbox_chain;
+CREATE INDEX inbox_home ON inbox(home);
+DROP INDEX session_inits_chain;
+CREATE INDEX session_inits_home ON session_inits(home);
+UPDATE cards SET doc = json_remove(json_set(doc, '$.home', json_extract(doc, '$.chainId')), '$.chainId') WHERE json_type(doc, '$.chainId') IS NOT NULL;
+UPDATE drafts SET doc = json_remove(json_set(doc, '$.home', json_extract(doc, '$.chainId')), '$.chainId') WHERE json_type(doc, '$.chainId') IS NOT NULL;
+UPDATE inbox SET doc = json_remove(json_set(doc, '$.home', json_extract(doc, '$.chainId')), '$.chainId') WHERE json_type(doc, '$.chainId') IS NOT NULL;
+UPDATE session_inits SET doc = json_remove(json_set(doc, '$.home', json_extract(doc, '$.chainId')), '$.chainId') WHERE json_type(doc, '$.chainId') IS NOT NULL;

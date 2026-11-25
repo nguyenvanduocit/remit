@@ -1,0 +1,126 @@
+[
+  {
+    "verb": "agent",
+    "input": "{\"prompt\":\"a\u003cb \u0026 c\",\"n\":1e21,\"x\":1.50}",
+    "canonical": "{\"n\":1e21,\"prompt\":\"a\\u003cb \\u0026 c\",\"x\":1.50}",
+    "hash": "3d03792219fbb62fe5c52df4b98814e49b5089615068723e56c5785a68a4eab8"
+  },
+  {
+    "verb": "agent",
+    "input": "{\"prompt\":\"x\",\"label\":\"one\"}",
+    "canonical": "{\"label\":\"one\",\"prompt\":\"x\"}",
+    "hash": "d961b194f3e102a171e28bdc7036151995e813017904fcef34d0b2578c47be17"
+  },
+  {
+    "verb": "log",
+    "input": "{\"message\":\"2 findings to verify\"}",
+    "canonical": "{\"message\":\"2 findings to verify\"}",
+    "hash": "f6dca8bae5cb1fd89ee125df89d15753b0e136e51bd7b56d7da77ac6557a3b40"
+  },
+  {
+    "verb": "ask_owner",
+    "input": "{\"question\":\"ship it?\"}",
+    "canonical": "{\"question\":\"ship it?\"}",
+    "hash": "463f172e07fdf1fb26ac21631ac12e57e04ec286488174538754c33338e08780"
+  },
+  {
+    "verb": "agent",
+    "input": "{\"html\":\"\u003cscript\u003e\u0026amp;\u003c/script\u003e\",\"sep\":\"a\u2028b\u2029c\"}",
+    "canonical": "{\"html\":\"\\u003cscript\\u003e\\u0026amp;\\u003c/script\\u003e\",\"sep\":\"a\\u2028b\\u2029c\"}",
+    "hash": "8b6a94883234c30c57a5212e74ba8728d533725650da298439af7fb1709c2fa3"
+  },
+  {
+    "verb": "agent",
+    "input": "{\"raw\":\"a\u2028b\u2029c\"}",
+    "canonical": "{\"raw\":\"a\\u2028b\\u2029c\"}",
+    "hash": "a28e6be51b251b4284076b87c2263044cc3e6a97292b2825a403f4c84c9db034"
+  },
+  {
+    "verb": "agent",
+    "input": "{\"ctl\":\"\\b\\f\\n\\r\\t\\u0001\\u001f\\u007f\",\"q\":\"\\\"\\\\/\"}",
+    "canonical": "{\"ctl\":\"\\b\\f\\n\\r\\t\\u0001\\u001f\",\"q\":\"\\\"\\\\/\"}",
+    "hash": "09f16044c39fea5f6df64721fa40588345596349226d976116c9776941ea6f00"
+  },
+  {
+    "verb": "agent",
+    "input": "{\"u\":\"café é 😀 😀\",\"lone\":\"\\ud800x\",\"lone2\":\"a\\udc00\"}",
+    "canonical": "{\"lone\":\"�x\",\"lone2\":\"a�\",\"u\":\"café é 😀 😀\"}",
+    "hash": "9f7d84641df695db27a4b28fe628e8c9276528ea38360e62e31bacffdfda18f8"
+  },
+  {
+    "verb": "agent",
+    "input": "{\"n\":[-0,0.0,1E21,1e-7,123456789012345678901234567890,-1.5e+10,0,1.50,1e+21,5e-324]}",
+    "canonical": "{\"n\":[-0,0.0,1E21,1e-7,123456789012345678901234567890,-1.5e+10,0,1.50,1e+21,5e-324]}",
+    "hash": "accd67e237bf7b5eb33797a1940eecc2b7fa94a89a67e7bd53d2b45f199673e8"
+  },
+  {
+    "verb": "agent",
+    "input": "{\"B\":1,\"a\":2,\"ä\":3,\"_\":4,\"A\":5,\"aa\":6,\"\":7,\"\u003ck\u003e\":8}",
+    "canonical": "{\"\":7,\"\\u003ck\\u003e\":8,\"A\":5,\"B\":1,\"_\":4,\"a\":2,\"aa\":6,\"ä\":3}",
+    "hash": "e5704954e8203d6e9c12d0fa56a1f803c149fba5c28e23ad2e5d86af574296d8"
+  },
+  {
+    "verb": "agent",
+    "input": "{\"a\":1,\"a\":2}",
+    "canonical": "{\"a\":2}",
+    "hash": "619e2719633cb1c06b324b61f73e817d5346630d082fd9f71f44821183743fb4"
+  },
+  {
+    "verb": "agent",
+    "input": " { \"a\" : [ 1 , { \"z\" : null , \"y\" : true } , false , [ ] , { } ] } ",
+    "canonical": "{\"a\":[1,{\"y\":true,\"z\":null},false,[],{}]}",
+    "hash": "5f240108875ed4856cf120bc5880e18884aa48c7fa75f5795dd575173f9b74c6"
+  },
+  {
+    "verb": "wait",
+    "input": "null",
+    "canonical": "null",
+    "hash": "1710f5514e697c125bd47e8ebc65e4e2564a55bbae975a59c1de5eb85aef38be"
+  },
+  {
+    "verb": "wait",
+    "input": "true",
+    "canonical": "true",
+    "hash": "f61860e897ce8c614d46b44f2bf8bdb969c3eab126ad9e7fa639c97dd3eac8f3"
+  },
+  {
+    "verb": "wait",
+    "input": "\"just a string\"",
+    "canonical": "\"just a string\"",
+    "hash": "4380fee3df8caaba5bd733651f255353eb2bd3477c1a4baeb062f297f806721f"
+  },
+  {
+    "verb": "wait",
+    "input": "1.0",
+    "canonical": "1.0",
+    "hash": "ee3e278abd1ad384b6e83542a451d340f3220fd2d4324cc57c5fbb125f2f5510"
+  },
+  {
+    "verb": "wait",
+    "input": "[]",
+    "canonical": "[]",
+    "hash": "465b58c5e4079bf7aefc46d804a57221ab56f6482831e4edf78dff68978a0557"
+  },
+  {
+    "verb": "wait",
+    "input": "{}",
+    "canonical": "{}",
+    "hash": "2e27380f3bde59d4e4cdc09aa4004f2db54f59af7f1a0270f9d65c72dbe2b194"
+  },
+  {
+    "verb": "phase",
+    "input": "{\"title\":\"Find\"}",
+    "canonical": "{\"title\":\"Find\"}",
+    "hash": "60e69d16c92bbe7c43ff1ed98e9ad146340c559c9eb3211dbbb4dafc013fb843"
+  },
+  {
+    "verb": "agent",
+    "input": "undefined",
+    "err": true
+  },
+  {
+    "verb": "agent",
+    "input": "",
+    "err": true
+  }
+]

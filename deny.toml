@@ -1,0 +1,49 @@
+# What `cargo deny check` holds for every dependency: no known vulnerability, a licence we may ship, one registry.
+[graph]
+all-features = true
+
+[advisories]
+yanked = "deny"
+# Accepted, each until the upgrade named lifts it: timing side channels in a secret operation an attacker would have to
+# time, with no compatible fix in the crate that pulls them in.
+ignore = [
+    # rsa 0.9 (Marvin): jsonwebtoken signs the Google Analytics service account's token with it, outbound only. Lifted
+    # when jsonwebtoken moves to rsa 0.10.
+    { id = "RUSTSEC-2023-0071", reason = "rsa 0.9 through jsonwebtoken, outbound signing only; no rsa 0.10 release to move to" },
+    # crypto-bigint 0.5: elliptic-curve 0.13 (p256) pins it; the fix is in 0.7.6. Lifted with elliptic-curve 0.14.
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 pinned by elliptic-curve 0.13; the fix needs elliptic-curve 0.14" },
+]
+
+[licenses]
+# Our own crates are not published (publish = false), so they carry no licence field.
+private = { ignore = true }
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    # ferroni, the pure-Rust Oniguruma behind shadcn-rs's code highlighting (its ADR-0002).
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    # clipboard-win and error-code, arboard's Windows clipboard under shadcn-rs's `gui`.
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# A path dependency between our own unpublished crates has no version, and needs none.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# cosmic-text's fix for a line-clamped last line, unreleased (Cargo.toml's patch); and shadcn-rs, the desktop app's GUI.
+allow-git = ["https://github.com/pop-os/cosmic-text", "https://github.com/nguyenvanduocit/shadcn-rs"]

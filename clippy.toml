@@ -1,0 +1,19 @@
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+
+# One owner for each entrance (AGENTS.md, "One concept, one owner"): a second place that opens the database or starts a
+# child process does not compile. A call that is the owner says so at its line, a test at the top of its file, with
+# #[expect(clippy::disallowed_methods, reason = "...")]. A crate with a clippy.toml of its own (the pure crates) takes
+# nothing from this file, as clippy reads only the nearest one: these lines are copied into each of them.
+# allow-invalid: a crate that does not depend on rusqlite or tokio has no such path to resolve.
+disallowed-methods = [
+    { path = "std::process::Command::new", reason = "start a child with procgroup::command, its environment from childenv::of (ADR-0018, ADR-0069)" },
+    { path = "tokio::process::Command::new", reason = "start a child with procgroup::command, its environment from childenv::of (ADR-0018, ADR-0069)", allow-invalid = true },
+    { path = "rusqlite::Connection::open", reason = "the store owns the database: open it through crates/store", allow-invalid = true },
+    { path = "rusqlite::Connection::open_with_flags", reason = "the store owns the database: open it through crates/store", allow-invalid = true },
+    { path = "rusqlite::Connection::open_with_flags_and_vfs", reason = "the store owns the database: open it through crates/store", allow-invalid = true },
+    { path = "rusqlite::Connection::open_in_memory", reason = "the store owns the database: open it through crates/store", allow-invalid = true },
+    { path = "rusqlite::Connection::open_in_memory_with_flags", reason = "the store owns the database: open it through crates/store", allow-invalid = true },
+]

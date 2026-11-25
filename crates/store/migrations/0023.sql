@@ -1,0 +1,2 @@
+
+CREATE TABLE reactions (id TEXT PRIMARY KEY, doc TEXT NOT NULL);

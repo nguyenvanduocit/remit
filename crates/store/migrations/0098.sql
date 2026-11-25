@@ -1,0 +1,1 @@
+ALTER TABLE requests ADD COLUMN error_kind TEXT NOT NULL DEFAULT '';

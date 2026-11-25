@@ -1,0 +1,38 @@
+[package]
+name = "source"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+telemetry = { path = "../telemetry" }
+tracing = "0.1"
+urlescape = { path = "../urlescape" }
+wire = { path = "../wire" }
+grant = { path = "../grant" }
+aws-credential-types = "1"
+aws-sigv4 = { version = "1.6.5", default-features = false, features = ["sign-http", "http1"] }
+base64 = "0.22"
+bson = { version = "3.1.0", features = ["serde", "serde_json-1"] }
+hex = "0.4.3"
+hmac = "0.12"
+http = "1.5.0"
+jiff = "0.2.16"
+mongodb = { version = "3.10.0", default-features = false, features = ["compat-3-3-0", "bson-3", "rustls-tls", "dns-resolver"] }
+mysql_async = { version = "0.37.1", default-features = false, features = ["minimal-rust"] }
+regex = "1.12.2"
+rmcp = { version = "3.9.0", default-features = false, features = ["client", "transport-async-rw", "transport-streamable-http-client-reqwest"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8.5"
+schemars = "1.2.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10.9"
+tempfile = "3.27.0"
+tokio = { version = "1.54.1", features = ["rt", "time", "sync", "macros", "io-util"] }
+url = "2.5.8"

@@ -1,0 +1,54 @@
+# The Rust workspace (crates/) is checked on every push and pull request with `make test-rust audit`; the crates with code
+# of their own for macOS (the jail's Seatbelt half, claudecode, source, remit) are tested on macOS too. rustup reads
+# rust-toolchain.toml and installs the pinned compiler on first use. Every job is bounded in time, so a hung test fails
+# in minutes instead of after GitHub's 6 hours. Both build the web app first (`make deps web`), as release.yml does: the
+# remit binary embeds web/dist, and its test opens an app route.
+name: rust
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-machete,cargo-nextest,wasm-bindgen-cli@0.2.130 # the version crates/client-web pins
+      - name: Allow the user namespaces the jail makes
+        # As in release.yml: ubuntu-24.04 restricts unprivileged user namespaces, which the jail's tests need (ADR-0021).
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: cargo fmt --all --check
+      - uses: Swatinem/rust-cache@v2
+      - run: make deps web
+      - run: make test-rust audit
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,wasm-bindgen-cli@0.2.130 # the version crates/client-web pins
+      - name: Git identity for the tests that commit
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@invalid
+      - uses: Swatinem/rust-cache@v2
+      - run: make deps web
+      # The jail's test has its own main (libtest-mimic) that sets the jail up first, and runs every case under Seatbelt.
+      - run: cargo nextest run --locked --all-targets -p jail -p claudecode -p source -p remit -p procgroup

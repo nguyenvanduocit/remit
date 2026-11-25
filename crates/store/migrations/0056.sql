@@ -1,0 +1,2 @@
+
+CREATE TABLE extensions (id TEXT PRIMARY KEY, applied_at INTEGER NOT NULL, doc TEXT NOT NULL);

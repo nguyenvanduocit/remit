@@ -1,0 +1,48 @@
+review oldest call 0 phase Find 60e69d16c92bbe7c43ff1ed98e9ad146340c559c9eb3211dbbb4dafc013fb843 {"title":"Find"}
+review oldest call 1 agent Find 142e1cde4b392ac3d0cc2b0ac5ef8141082be67994c20d2e250cba4ec84e8ae8 {"label":"correctness","prompt":"Find correctness bugs in the diff.","schema":{"properties":{"findings":{"type":"array"}},"required":["findings"],"type":"object"}}
+review oldest call 2 agent Find 1306b445d79af26eac2daa22d73f518a4de99db66daf0e8c1a93985458f4fd14 {"label":"security","prompt":"Find security bugs in the diff.","schema":{"properties":{"findings":{"type":"array"}},"required":["findings"],"type":"object"}}
+review oldest call 3 agent Find 13ad86809b8ce5d0eb71c45ff57c85b8f3a2282b8a85f6464391413e623b1a40 {"label":"concurrency","prompt":"Find concurrency bugs in the diff.","schema":{"properties":{"findings":{"type":"array"}},"required":["findings"],"type":"object"}}
+review oldest call 4 log Find f6dca8bae5cb1fd89ee125df89d15753b0e136e51bd7b56d7da77ac6557a3b40 {"message":"2 findings to verify"}
+review oldest call 5 phase Verify f6b04ecaaaac047bb8b538af1bce4834596d2581be1a3008f467419104143c26 {"title":"Verify"}
+review oldest call 6 agent Verify 4713cd6156b8fbc1a381f06c76c77eaffa2bc0ec035bec70fd022f485689ef4b {"prompt":"Verify a.go:1 nil map. Default to real=false if uncertain.","schema":{"properties":{"real":{"type":"boolean"}},"required":["real"],"type":"object"}}
+review oldest call 7 agent Verify cd221081086dbc057712ff4cf2cd170565ab224e21ede931ee7a153aeb665430 {"prompt":"Verify b.go:2 off by one. Default to real=false if uncertain.","schema":{"properties":{"real":{"type":"boolean"}},"required":["real"],"type":"object"}}
+review oldest end done [{"desc":"nil map","file":"a.go","line":1,"real":true}] <nil>
+review newest call 0 phase Find 60e69d16c92bbe7c43ff1ed98e9ad146340c559c9eb3211dbbb4dafc013fb843 {"title":"Find"}
+review newest call 1 agent Find 142e1cde4b392ac3d0cc2b0ac5ef8141082be67994c20d2e250cba4ec84e8ae8 {"label":"correctness","prompt":"Find correctness bugs in the diff.","schema":{"properties":{"findings":{"type":"array"}},"required":["findings"],"type":"object"}}
+review newest call 2 agent Find 1306b445d79af26eac2daa22d73f518a4de99db66daf0e8c1a93985458f4fd14 {"label":"security","prompt":"Find security bugs in the diff.","schema":{"properties":{"findings":{"type":"array"}},"required":["findings"],"type":"object"}}
+review newest call 3 agent Find 13ad86809b8ce5d0eb71c45ff57c85b8f3a2282b8a85f6464391413e623b1a40 {"label":"concurrency","prompt":"Find concurrency bugs in the diff.","schema":{"properties":{"findings":{"type":"array"}},"required":["findings"],"type":"object"}}
+review newest call 4 log Find f6dca8bae5cb1fd89ee125df89d15753b0e136e51bd7b56d7da77ac6557a3b40 {"message":"2 findings to verify"}
+review newest call 5 phase Verify f6b04ecaaaac047bb8b538af1bce4834596d2581be1a3008f467419104143c26 {"title":"Verify"}
+review newest call 6 agent Verify 4713cd6156b8fbc1a381f06c76c77eaffa2bc0ec035bec70fd022f485689ef4b {"prompt":"Verify a.go:1 nil map. Default to real=false if uncertain.","schema":{"properties":{"real":{"type":"boolean"}},"required":["real"],"type":"object"}}
+review newest call 7 agent Verify cd221081086dbc057712ff4cf2cd170565ab224e21ede931ee7a153aeb665430 {"prompt":"Verify b.go:2 off by one. Default to real=false if uncertain.","schema":{"properties":{"real":{"type":"boolean"}},"required":["real"],"type":"object"}}
+review newest end done [{"desc":"nil map","file":"a.go","line":1,"real":true}] <nil>
+review middle call 0 phase Find 60e69d16c92bbe7c43ff1ed98e9ad146340c559c9eb3211dbbb4dafc013fb843 {"title":"Find"}
+review middle call 1 agent Find 142e1cde4b392ac3d0cc2b0ac5ef8141082be67994c20d2e250cba4ec84e8ae8 {"label":"correctness","prompt":"Find correctness bugs in the diff.","schema":{"properties":{"findings":{"type":"array"}},"required":["findings"],"type":"object"}}
+review middle call 2 agent Find 1306b445d79af26eac2daa22d73f518a4de99db66daf0e8c1a93985458f4fd14 {"label":"security","prompt":"Find security bugs in the diff.","schema":{"properties":{"findings":{"type":"array"}},"required":["findings"],"type":"object"}}
+review middle call 3 agent Find 13ad86809b8ce5d0eb71c45ff57c85b8f3a2282b8a85f6464391413e623b1a40 {"label":"concurrency","prompt":"Find concurrency bugs in the diff.","schema":{"properties":{"findings":{"type":"array"}},"required":["findings"],"type":"object"}}
+review middle call 4 log Find f6dca8bae5cb1fd89ee125df89d15753b0e136e51bd7b56d7da77ac6557a3b40 {"message":"2 findings to verify"}
+review middle call 5 phase Verify f6b04ecaaaac047bb8b538af1bce4834596d2581be1a3008f467419104143c26 {"title":"Verify"}
+review middle call 6 agent Verify 4713cd6156b8fbc1a381f06c76c77eaffa2bc0ec035bec70fd022f485689ef4b {"prompt":"Verify a.go:1 nil map. Default to real=false if uncertain.","schema":{"properties":{"real":{"type":"boolean"}},"required":["real"],"type":"object"}}
+review middle call 7 agent Verify cd221081086dbc057712ff4cf2cd170565ab224e21ede931ee7a153aeb665430 {"prompt":"Verify b.go:2 off by one. Default to real=false if uncertain.","schema":{"properties":{"real":{"type":"boolean"}},"required":["real"],"type":"object"}}
+review middle end done [{"desc":"nil map","file":"a.go","line":1,"real":true}] <nil>
+pipe oldest call 0 agent  d97aeef1e6835ccd2b3d53024aa3aeb06a8f9bf521991132853391a9e7ded439 {"prompt":"draft x"}
+pipe oldest call 1 agent  9ce9ac9d0ad589be22acc14c55e20f2d08ffb9c19d47501f824f79c7385b9365 {"prompt":"draft y"}
+pipe oldest call 2 agent  f3fc3e8f3b2a7e82b616a9a2793bd2673be0a839a6b80588f0cbe209e614f2c7 {"prompt":"draft z"}
+pipe oldest call 3 agent  e41dee38027df29afd0811a668d9a4f0700951f929989512faeebcd71fd9a899 {"prompt":"check x #0"}
+pipe oldest call 4 agent  1a37a27efe023e1cc6bd1d98bf2f100a456f617bea65df39169b2793ec672c0f {"prompt":"check y #1"}
+pipe oldest call 5 agent  c079c58c2b375a3db8c92fb556702ebc1fb18120d02e6f59432b2f1bfabc8e31 {"prompt":"check z #2"}
+pipe oldest end done ["check x #0","check y #1","check z #2"] <nil>
+pipe newest call 0 agent  d97aeef1e6835ccd2b3d53024aa3aeb06a8f9bf521991132853391a9e7ded439 {"prompt":"draft x"}
+pipe newest call 1 agent  9ce9ac9d0ad589be22acc14c55e20f2d08ffb9c19d47501f824f79c7385b9365 {"prompt":"draft y"}
+pipe newest call 2 agent  f3fc3e8f3b2a7e82b616a9a2793bd2673be0a839a6b80588f0cbe209e614f2c7 {"prompt":"draft z"}
+pipe newest call 3 agent  c079c58c2b375a3db8c92fb556702ebc1fb18120d02e6f59432b2f1bfabc8e31 {"prompt":"check z #2"}
+pipe newest call 4 agent  1a37a27efe023e1cc6bd1d98bf2f100a456f617bea65df39169b2793ec672c0f {"prompt":"check y #1"}
+pipe newest call 5 agent  e41dee38027df29afd0811a668d9a4f0700951f929989512faeebcd71fd9a899 {"prompt":"check x #0"}
+pipe newest end done ["check x #0","check y #1","check z #2"] <nil>
+pipe middle call 0 agent  d97aeef1e6835ccd2b3d53024aa3aeb06a8f9bf521991132853391a9e7ded439 {"prompt":"draft x"}
+pipe middle call 1 agent  9ce9ac9d0ad589be22acc14c55e20f2d08ffb9c19d47501f824f79c7385b9365 {"prompt":"draft y"}
+pipe middle call 2 agent  f3fc3e8f3b2a7e82b616a9a2793bd2673be0a839a6b80588f0cbe209e614f2c7 {"prompt":"draft z"}
+pipe middle call 3 agent  1a37a27efe023e1cc6bd1d98bf2f100a456f617bea65df39169b2793ec672c0f {"prompt":"check y #1"}
+pipe middle call 4 agent  c079c58c2b375a3db8c92fb556702ebc1fb18120d02e6f59432b2f1bfabc8e31 {"prompt":"check z #2"}
+pipe middle call 5 agent  e41dee38027df29afd0811a668d9a4f0700951f929989512faeebcd71fd9a899 {"prompt":"check x #0"}
+pipe middle end done ["check x #0","check y #1","check z #2"] <nil>

@@ -1,0 +1,66 @@
+[package]
+name = "crew"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+capability = { path = "../capability" }
+chains = { path = "../chains" }
+keys = { path = "../keys" }
+pipeline = { path = "../pipeline" }
+reach = { path = "../reach" }
+hex = "0.4.3"
+judgment = { path = "../judgment" }
+tempfile = "3.27.0"
+agent = { path = "../agent" }
+bundled = { path = "../bundled" }
+egress = { path = "../egress" }
+library = { path = "../library" }
+builtin = { path = "../builtin" }
+importer = { path = "../importer" }
+skills = { path = "../skills" }
+link = { path = "../link" }
+async-trait = "0.1.92"
+base64 = "0.22.1"
+clientmcp = { path = "../clientmcp" }
+grant = { path = "../grant" }
+hmac = "0.12"
+plugin = { path = "../plugin" }
+plugin-sdk = { path = "../plugin-sdk" }
+rollout = { path = "../rollout" }
+source = { path = "../source" }
+forge = { path = "../forge" }
+model = { path = "../model" }
+outcomes = { path = "../outcomes" }
+provider = { path = "../provider" }
+rmcp = { version = "3.9.0", default-features = false, features = ["server"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+schemars = "1.2.3"
+secrets = { path = "../secrets" }
+getrandom = { version = "0.3.4", features = ["std"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+sha2 = "0.10.9"
+signal = { path = "../signal" }
+store = { path = "../store" }
+telemetry = { path = "../telemetry" }
+subtle = "2.6.1"
+thiserror = "2.0.21"
+time = { version = "0.3.55", features = ["formatting", "parsing", "macros"] }
+tokio = { version = "1.54.1", features = ["sync", "rt", "macros", "time", "fs"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tracing = "0.1"
+wire = { path = "../wire" }
+workflow = { path = "../workflow" }
+childenv = { path = "../childenv" }
+procgroup = { path = "../procgroup" }
+jail = { path = "../jail" }
+regex = "1.12.2"
+url = "2.5.8"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider"] }
+jsonschema = { version = "0.51", default-features = false }

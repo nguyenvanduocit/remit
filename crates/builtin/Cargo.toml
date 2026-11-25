@@ -1,0 +1,17 @@
+[package]
+name = "builtin"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+model = { path = "../model" }
+# debug-embed: a debug build and the tests hold the files in the binary too, as a release does, rather than reading
+# them from the source tree at run time.
+rust-embed = { version = "8.13.0", features = ["debug-embed"] }
+skills = { path = "../skills" }
+thiserror = "2.0.21"

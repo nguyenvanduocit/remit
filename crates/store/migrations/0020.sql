@@ -1,0 +1,2 @@
+
+CREATE TABLE routines (id TEXT PRIMARY KEY, doc TEXT NOT NULL);

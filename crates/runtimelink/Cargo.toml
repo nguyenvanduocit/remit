@@ -1,0 +1,29 @@
+[package]
+name = "runtimelink"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+agent = { path = "../agent" }
+base64 = "0.22.1"
+claudecode = { path = "../claudecode" }
+getrandom = { version = "0.3.4", features = ["std"] }
+jiff = "0.2.16"
+link = { path = "../link" }
+link-quic = { path = "../link-quic" }
+model = { path = "../model" }
+serde = "1.0.229"
+serde_json = "1.0.154"
+subtle = "2.6.1"
+thiserror = "2.0.21"
+time = "0.3.55"
+tokio = { version = "1.54.1", features = ["rt", "sync", "time", "macros"] }
+tokio-util = "0.7.20"
+tracing = "0.1.44"
+uuid = { version = "1.18.1", features = ["v4"] }
+wire = { path = "../wire" }

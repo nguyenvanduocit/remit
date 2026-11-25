@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd job for Remit on macOS, the user's own (docs/deploy.md, Keep it running): installed as
+  ~/Library/LaunchAgents/remit.plist, which every agent session has hidden from it. launchd takes no ~ or $HOME, so
+  replace /Users/YOU with the home of the user that owns the data directory and the agents' claude login, and
+  /Users/YOU/remit with the checkout the binary was built in. Then:
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/remit.plist   # start, and at every login
+    launchctl kickstart -k gui/$(id -u)/remit                             # restart, after `make build`
+    launchctl bootout gui/$(id -u)/remit                                  # stop
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>remit</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/YOU/remit/bin/remit</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/YOU/remit</string>
+  <!-- launchd's PATH is the system's alone: the agents' claude (~/.local/bin) and Homebrew's git, gh and glab are added. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/YOU/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- Started again whenever it ends, as systemd's Restart=always. -->
+  <key>KeepAlive</key>
+  <true/>
+  <!-- Remit ends the agent processes it started itself, cancelling their turns so the next start resumes them:
+       launchd must signal only the server, as systemd's KillMode=process. -->
+  <key>AbandonProcessGroup</key>
+  <true/>
+  <key>ExitTimeOut</key>
+  <integer>15</integer>
+  <!-- No terminal: the server logs where the owner key is, never the key. -->
+  <key>StandardOutPath</key>
+  <string>/Users/YOU/.remit/remit.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOU/.remit/remit.log</string>
+</dict>
+</plist>

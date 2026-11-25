@@ -1,0 +1,130 @@
+/* The design tokens and the page's base: the one place a colour, a font or a shadow is written. Components use them by
+   name, as var(--x) in their scoped CSS or as a Tailwind utility (theme.css maps them: bg-panel, text-mut, border-line).
+   Component rules live in their component, never here. */
+:root{
+  color-scheme:dark; /* the browser's own parts (scrollbars, form controls, autofill) draw dark with it */
+  /* surfaces, lines and text, darkest to lightest */
+  --bg:#0b0d11; --bg2:#0f1218; --panel:#13171e; --panel2:#181d26; --panel3:#1e2430; --line:#262d3a; --line2:#323b4b;
+  --line3:#6c7890; /* the edge of a field the owner types into: 3:1 on every surface one sits on (WCAG 1.4.11) */
+  --rule:#1f2531; /* the faint dashed rules between rows */
+  --text:#e7eaf0; --text2:#b7bfcc; --mut:#8993a4; --faint:#838d9e;
+  /* --mut is text: 4.5:1 or more on every surface text sits on, the lightest of them --panel3 (5.02:1).
+     --faint is quieter text: 4.5:1 on every surface, --panel3 included (4.64:1). */
+  --well:#08090c; /* the pressed surface: below the page, where the open card and the chosen row sink */
+  /* hues: one job each (ADR-0090). Blue is what the owner can act on (the main button, a link, the focus ring); cyan is
+     work going on that needs no one (running, new); orange waits on the owner; amber is a warning; green done; red failed or
+     refused; sand a gate or a Chair's note; violet the Assistant. The owner himself is ink, not a hue. An agent's badge
+     colour is that agent's identity and never a state. */
+  --blue:#6aa3ff; --green:#43c38a; --amber:#f0b44c; --red:#f06a6a; --violet:#a98bff; --cyan:#45c8d8; --pink:#ff8fb0; --sand:#e9cf94;
+  --orange:#f08c3c; /* an agent that needs the owner */
+  /* each hue's quiet forms: -tint behind a pill or block, -bg behind a callout or chip, -line its border, -text on a tint */
+  --tree-line:rgba(90,150,255,.42); /* the lines of an outline: the agent tree, an event's steps */
+  --blue-edge:rgba(66,140,255,.65); --blue-glint:rgba(120,180,255,.10); --orange-edge:rgba(240,140,60,.6);
+  --meter-on:#6c7fe0; /* a used cell of the context meter */
+  --blue-tint:rgba(0,143,245,.13); --blue-bg:#162544; --blue-line:#2b4776; --blue-wash:#6aa3ff0a; --blue-text:#6fb4ff; --blue-hi:#8fbaff; --blue-mark:#4d8ff0;
+  --cyan-tint:rgba(69,200,216,.13); --cyan-bg:#0f2226; --cyan-line:#22525a; --cyan-text:#7fdde8;
+  --green-tint:rgba(67,195,138,.13); --green-bg:#10211a; --green-line:#285a43; --green-text:#7fdcae;
+  --orange-tint:rgba(240,140,60,.14); --orange-bg:#21160d; --orange-line:#6e4422; --orange-text:#f3a35c;
+  --amber-bg:#1d160b; --amber-bg2:#3a2a0e; --amber-line:#6b5022;
+  --red-tint:rgba(240,90,90,.14); --red-bg:#1d1012; --red-bg2:#2a1212; --red-line:#6b2a2a; --red-text:#ff9a9a; --red-hi:#ffd0d0;
+  --violet-bg:#241d3d; --violet-wash:#16132a; --violet-line:#4a3a7a; --violet-text:#c7b6ff;
+  --sand-tint:rgba(233,207,148,.16); --sand-bg:#191710; --sand-line:#62553a;
+  /* agent badges: an agent's letter on its own colour */
+  --agent-research-bg:#12343a; --agent-architect-bg:#17284a; --agent-engineer-bg:#14331f; --agent-reviewer-bg:#3a2d12;
+  --agent-qa-bg:#2c1f3c; --agent-pm-bg:#2d2141; --agent-pm:#c6b0ff; --agent-chair-bg:linear-gradient(135deg,#2a2150,#173055);
+  --agent-chair:#d6c8ff; --agent-critic-bg:#3a2330; --agent-critic:#ffb1c9; --agent-security-bg:#3a2516; --agent-security:#ffb37a;
+  --agent-release-bg:#3a1b25; --agent-human-bg:#2e2a1f; --agent-scout-bg:#1d2a3a; --agent-judge-bg:#2b2a1c;
+  /* an employee's face (ADR-0093): the server gives the hue, the theme the lightness and chroma, so every hue reads the
+     same on the page: 3:1 or more on every surface a face sits on (--panel3 the lightest), its features in --face-ink 3:1 or
+     more on the face, measured on all 360 hues when these were set. */
+  --face-l:.76; --face-c:.12; --face-ink:#0b0d11;
+  /* white over a surface: a pill, a hover, a hairline ring */
+  --veil:rgba(255,255,255,.06); --veil2:rgba(255,255,255,.09); --veil3:rgba(255,255,255,.18);
+  --on-primary:#0b1020; /* text on the primary (blue) fill */
+  /* black under a surface: shadows */
+  --shade:rgba(0,0,0,.5); --shade2:rgba(0,0,0,.45);
+  --shadow-card:0 0 0 .5px var(--veil2),0 1px 2px var(--shade2);
+  --shadow-card-hover:0 0 0 .5px var(--veil3),0 2px 6px var(--shade);
+  --shadow-pop:0 10px 30px var(--shade2);
+  --shadow-raised:0 0 0 .5px var(--veil2),0 8px 30px var(--shade);
+  /* pressed into the page: the open card, the chosen row. Its hairline is the card's own, moved inside; the state is the
+     sunk surface, never a ring or a glow. */
+  --shadow-pressed:inset 0 0 0 1px var(--veil),inset 0 2px 4px var(--shade);
+  /* the control ruler: every button, field, select and toggle stands on one of four heights, and takes that step's padding,
+     text and corner. A control set in a line of text (a link-styled button) takes no step. */
+  --control-xs:24px; --control-sm:28px; --control-md:32px; --control-lg:36px;
+  --control-pad-xs:8px; --control-pad-sm:10px; --control-pad-md:12px; --control-pad-lg:14px;
+  --control-text-sm:12px; --control-text-md:13px; /* xs and sm take -sm; md and lg take -md */
+  --control-radius-sm:6px; --control-radius:8px; /* xs and sm take -sm; md and lg the other */
+  /* the type the owner reads at length (what an agent says, what waits on him, the Assistant's conversation), the UI's
+     own body (style.css body), and the meta beside them; the board and the tree stay at the UI body */
+  --size-read:14px; --leading-read:1.6; --size-body:13px; --leading-ui:1.45; --size-meta:12px;
+  /* rhythms, named once: an icon and its words, the cards or items of a list, the inside of a card or a callout, the
+     columns of a board, a pane's edge */
+  --space-icon:6px; --space-stack:8px; --space-card:10px; --space-gutter:10px; --space-pane:16px;
+  /* motion: only what arrives moves (a popover, a menu, a dialog, a row); what closes goes at once. Hover and press take
+     --dur-fast. */
+  --dur-fast:120ms; --dur-base:160ms; --dur-panel:220ms; --ease-enter:cubic-bezier(.2,0,0,1);
+  --sans:"Inter Variable",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono Variable","JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+  body {
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font: var(--size-body)/var(--leading-ui) var(--sans);
+    font-feature-settings: "cv11", "ss01";
+  }
+  /* Scrollbars: thin, no track, a muted thumb that lights up on hover. WebKit/Blink get the pseudo-elements (the
+     transparent border insets the thumb into a pill); Chrome ignores them once scrollbar-color is set, so Firefox alone
+     gets the standard properties. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 8px;
+    background-color: var(--faint);
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--mut);
+  }
+  ::-webkit-scrollbar-thumb:active {
+    background-color: var(--text2);
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--faint) transparent;
+    }
+  }
+  /* What holds the keyboard's focus shows it the same way everywhere: a ring in --ring around it. shadcn's controls draw
+     their own (their outline-none and ring utilities win over this layer); a part that sits inside a scrolling box insets it. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  /* What loops or slides stands still for an owner who asked for less motion: a spinner shows its ring, a sheen its text. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0s !important;
+    }
+  }
+}

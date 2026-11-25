@@ -1,0 +1,24 @@
+[package]
+name = "agent"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+claudecode = { path = "../claudecode" }
+claudehooks = { path = "../claudehooks" }
+jiff = "0.2.16"
+model = { path = "../model" }
+regex = "1.12.2"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+thiserror = "2.0.21"
+time = "0.3.55"
+tokio = { version = "1.54.1", features = ["sync", "rt", "macros", "time"] }
+uuid = { version = "1.18.1", features = ["v4"] }
+# What a session reports, declared once by the runtime contract (ADR-0107 decision 4).
+wire = { path = "../wire" }

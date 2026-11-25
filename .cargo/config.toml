@@ -1,0 +1,13 @@
+# The browser's WebTransport is an unstable API in web-sys: `client-web` builds for wasm32 with it (ADR-0072 decision 8,
+# P5). Native builds are untouched.
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg=web_sys_unstable_apis"]
+
+# Every `cargo -p <crate>` resolves dependency features for the whole workspace, so a shared crate (tokio, serde, ...) is
+# built once rather than once per feature set the selected crates happen to enable; per-crate resolution filled the
+# target dir with one copy of the dependency graph per selection. Nightly only: a stable cargo ignores both tables.
+[unstable]
+feature-unification = true
+
+[resolver]
+feature-unification = "workspace"

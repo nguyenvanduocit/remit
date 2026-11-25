@@ -1,0 +1,188 @@
+{
+  "landing": {
+    "id": "ln_1",
+    "chainId": "c_1",
+    "repo": "app",
+    "host": "github.com",
+    "project": "acme/app",
+    "base": "main",
+    "version": {
+      "number": 2,
+      "from": "abc",
+      "forked": "def",
+      "change": "p1",
+      "gates": [
+        "reviewer",
+        "qc"
+      ],
+      "verdicts": [
+        "ap_1",
+        "ap_2"
+      ],
+      "by": [
+        "e_1"
+      ],
+      "title": "fix(login): sign in again",
+      "description": "the session cookie is <Secure> again",
+      "paths": [
+        "auth/session.go"
+      ]
+    },
+    "priority": "high",
+    "priorityWhy": "nobody can sign in",
+    "state": {
+      "kind": "reverted",
+      "revert": "ln_2",
+      "cause": "pipeline",
+      "by": {
+        "kind": "remit",
+        "who": "landing"
+      },
+      "why": "test failed on 0a2; it passed on def"
+    },
+    "batch": "b_1",
+    "onto": "def",
+    "commit": "0a1",
+    "push": "0a2",
+    "checks": {
+      "state": "failed",
+      "failed": "test"
+    },
+    "baseChecks": {
+      "state": "passed"
+    },
+    "release": "rl_1",
+    "reference": "https://github.com/acme/app/pull/7",
+    "createdAt": "2026-11-10T17:00:00.12+07:00",
+    "readyAt": "2026-11-10T17:00:00.12+07:00",
+    "landedAt": "2026-11-10T17:30:00Z",
+    "revertedAt": "2026-11-10T18:00:00Z",
+    "updatedAt": "2026-11-10T18:00:00Z",
+    "rev": 4
+  },
+  "account": {
+    "id": "bedrock.eu-west",
+    "plugin": "bedrock",
+    "connection": "eu-west",
+    "createdAt": "2026-11-09T08:30:00Z"
+  },
+  "chain": {
+    "id": "c_1",
+    "title": "Fix <the> login & signup",
+    "goal": "Users sign in\u2028again",
+    "kind": "chore",
+    "capabilities": [
+      "signals"
+    ],
+    "origin": "owner",
+    "by": {
+      "kind": "owner",
+      "who": "local",
+      "via": "web"
+    },
+    "status": "running",
+    "chairId": "card_0",
+    "workdir": "/work/c_1",
+    "repos": [
+      {
+        "repo": "app",
+        "project": "acme/app",
+        "path": "/work/c_1/app",
+        "branch": "remit/c_1",
+        "base": "main",
+        "submit": {
+          "title": "fix(login): sign in again",
+          "priority": "high",
+          "priorityWhy": "nobody can sign in",
+          "plan": {
+            "exposure": "10% of shops",
+            "guardrail": "chain:c_1.sensor.errors",
+            "breach": "value.rate > 0.02",
+            "bake": 1800000000000,
+            "rollback": "set flag login_v2 to 0"
+          },
+          "startedAt": "2026-11-10T17:00:00.12+07:00"
+        }
+      }
+    ],
+    "finishing": {
+      "summary": "done",
+      "judge": "card_9",
+      "at": "2026-11-09T08:30:00Z"
+    },
+    "serves": {
+      "objective": "o_1",
+      "keyResult": "kr_1"
+    },
+    "createdAt": "2026-11-10T17:00:00.12+07:00",
+    "updatedAt": "2026-11-10T17:00:00.12+07:00",
+    "rev": 7
+  },
+  "event": {
+    "id": 42,
+    "home": "c_1",
+    "cardId": "card_1",
+    "kind": "tool",
+    "toolCallId": "t_1",
+    "toolName": "Bash",
+    "status": "completed",
+    "title": "go test",
+    "by": {
+      "kind": "agent",
+      "who": "card_1"
+    },
+    "data": {
+      "cmd": "go test ./...",
+      "ratio": 1e+21,
+      "n": 3
+    },
+    "createdAt": "2026-11-10T17:00:00.12+07:00",
+    "updatedAt": "2026-11-10T17:00:00.12+07:00",
+    "rev": 2
+  },
+  "subscription": {
+    "id": "s_1",
+    "owner": {
+      "kind": "chain",
+      "id": "c_1"
+    },
+    "match": "chain:c_1.landing.*",
+    "note": "Tell the Chair its pull request was approved.",
+    "expr": "value.state == \"landed\"",
+    "flow": {
+      "policy": "last",
+      "period": 90000000000,
+      "maxWait": 600000000000
+    },
+    "until": "2026-11-09T08:30:00Z",
+    "action": {
+      "kind": "plugin:forge.notify",
+      "with": {
+        "a": "value.x",
+        "z": "1"
+      }
+    },
+    "seenSeq": 9,
+    "hold": {
+      "reason": "firing_failed",
+      "firing": {
+        "subscription": "s_1",
+        "key": "chain:c_1.mr.app",
+        "rev": 3
+      },
+      "since": "2026-11-10T17:00:00.12+07:00"
+    },
+    "tally": {
+      "fired": 2,
+      "conditionFalse": 5
+    },
+    "by": {
+      "kind": "owner",
+      "who": "local",
+      "via": "web"
+    },
+    "createdAt": "2026-11-10T17:00:00.12+07:00",
+    "updatedAt": "2026-11-10T17:00:00.12+07:00",
+    "rev": 4
+  }
+}

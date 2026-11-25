@@ -1,0 +1,33 @@
+[package]
+name = "jail"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+procgroup = { path = "../procgroup" }
+rustix = { version = "1.1.6", features = ["process", "fs", "net", "thread"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json.workspace = true
+signal-hook = "0.4.6"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["process", "io-util", "net", "rt", "time", "macros", "sync"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.31.3", default-features = false, features = ["sched"] }
+rustix = { version = "1.1.6", features = ["process", "fs", "net", "thread", "mount"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libproc = "0.15.0"
+
+[[test]]
+name = "jail"
+harness = false
+
+[dev-dependencies]
+libtest-mimic = "0.8.2"
+tokio = { version = "1.54.1", features = ["process", "io-util", "net", "rt", "time", "macros", "sync"] }

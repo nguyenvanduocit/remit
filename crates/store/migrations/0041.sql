@@ -1,0 +1,2 @@
+
+ALTER TABLE events ADD COLUMN tool_name TEXT NOT NULL DEFAULT '';

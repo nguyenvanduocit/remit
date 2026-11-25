@@ -1,0 +1,2 @@
+
+CREATE TABLE assistant (id TEXT PRIMARY KEY, doc TEXT NOT NULL);

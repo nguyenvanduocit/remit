@@ -1,0 +1,22 @@
+[package]
+name = "clientmcp"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
+model = { path = "../model" }
+rmcp = { version = "3.9.0", default-features = false, features = ["server", "transport-streamable-http-server"] }
+tower-service = "0.3.3"
+tracing = "0.1"
+
+[dev-dependencies]
+serde_json = { workspace = true }
+rmcp = { version = "3.9.0", default-features = false, features = ["server", "client", "transport-streamable-http-server", "transport-streamable-http-client-reqwest"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "io-util"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }

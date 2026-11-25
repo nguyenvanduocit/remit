@@ -1,0 +1,20 @@
+[package]
+name = "importer"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+hex = "0.4.3"
+library = { path = "../library" }
+model = { path = "../model" }
+provider = { path = "../provider" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.10.9"
+skills = { path = "../skills" }
+thiserror = "2.0.21"

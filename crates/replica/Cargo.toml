@@ -1,0 +1,20 @@
+[package]
+name = "replica"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# The client core decides nothing: it depends on the link, the contract and the records it carries only, never on a rule
+# crate (ADR-0107 decision 1).
+[dependencies]
+# A model's rows, by key and in the model's order (`models.rs`).
+indexmap = "2.14.2"
+link = { path = "../link" }
+model = { path = "../model" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+wire = { path = "../wire" }

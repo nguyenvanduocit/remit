@@ -1,0 +1,6 @@
+#!/bin/sh
+# Runs before every push (`make hooks` points core.hooksPath here): a push that does not build or pass `make audit` (the
+# dependency advisories, licences and sources, and no dependency left unused) never leaves the machine, and a commit past
+# the size budget is warned about (it reads the refs git gives this hook on stdin). `make test-changed` runs on every
+# change and the pre-commit hook lints every commit; the release workflow runs `make test`, so nothing untested is published.
+scripts/commit_size.sh && cargo build --workspace --locked && make audit

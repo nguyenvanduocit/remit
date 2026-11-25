@@ -1,0 +1,31 @@
+[package]
+name = "store"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# storetest: a store that starts from a copy of a database migrated once per test binary.
+testing = []
+
+[dependencies]
+model = { path = "../model" }
+secrets = { path = "../secrets" }
+telemetry = { path = "../telemetry" }
+flate2 = "1.1.11"
+rusqlite = { version = "=0.41.1", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["raw_value"] }
+sha2 = "0.10.9"
+thiserror = "2.0.21"
+time = { version = "0.3.55", features = ["formatting", "parsing", "macros"] }
+tokio = { version = "1.54.1", features = ["sync", "rt"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.54.1", features = ["sync", "rt", "rt-multi-thread", "macros"] }

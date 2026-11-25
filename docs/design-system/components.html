@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remit — components</title>
+<!-- Every value comes from tokens.css (written from web/src/style.css by `make gen`). Each example names the Vue code that
+     renders it in web/src/components; class names follow the shadcn-vue variant names so a design ports by swapping. -->
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* shadcn names, as theme.css maps them */
+  :root{
+    --background:var(--bg); --foreground:var(--text); --card:var(--panel); --popover:var(--panel2);
+    --primary:var(--blue); --primary-foreground:var(--on-primary); --secondary:var(--panel2);
+    --muted-foreground:var(--mut); --destructive:var(--red); --input:var(--line3); --ring:var(--blue);
+    --info:var(--cyan); --radius:.5rem;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--text);font:var(--size-body)/var(--leading-ui) var(--sans);font-feature-settings:"cv11","ss01"}
+  :focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*,::before,::after{animation-duration:0s!important;transition-duration:0s!important}}
+  [hidden]{display:none!important}
+
+  /* page chrome */
+  .page{display:grid;grid-template-columns:200px minmax(0,1fr);height:100%}
+  .nav{background:var(--bg2);border-right:1px solid var(--line);padding:16px 12px;overflow:auto}
+  .nav h1{margin:0 0 4px;font-size:15px;font-weight:600}
+  .nav p{margin:0 0 16px;color:var(--mut);font-size:12px}
+  .nav a{display:block;padding:4px 8px;border-radius:6px;color:var(--text2);text-decoration:none;font-size:12.5px}
+  .nav a:hover{background:var(--panel3);color:var(--text)}
+  main{overflow:auto;padding:24px 32px 64px}
+  section{max-width:1080px;margin:0 0 40px}
+  section>h2{margin:0 0 4px;font-size:18px;font-weight:600}
+  section>p.lede{margin:0 0 16px;color:var(--text2);max-width:72ch}
+  .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .ex{border:1px solid var(--line);border-radius:8px;background:var(--bg2);margin:0 0 12px}
+  .ex .show{padding:16px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .ex .vue{margin:0;padding:8px 12px;border-top:1px dashed var(--rule);font:11.5px/1.5 var(--mono);color:var(--mut);white-space:pre-wrap;word-break:break-word}
+  .ex .vue b{color:var(--blue-text);font-weight:400}
+  @media (max-width:720px){.page{grid-template-columns:1fr}.nav{display:none}main{padding:16px}}
+
+  /* recipes (theme.css @utility) */
+  .caps{font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+  .mono{font-family:var(--mono);font-size:11.5px}
+  .code-chip{padding:1px 5px;border-radius:4px;background:var(--panel3);font-family:var(--mono);font-size:11.5px}
+  .owner-bubble{border:1px solid var(--line2);border-radius:12px 12px 3px 12px;background:var(--panel3);padding:8px 11px;max-width:360px}
+
+  /* icon (Lucide, outlined, 2px stroke) */
+  .od-icon{width:var(--od-icon-size,16px);height:var(--od-icon-size,16px);flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+  /* swatches */
+  .sw{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+  .sw i{display:block;height:48px}
+  .sw div{padding:8px 10px}
+  .sw b{display:block;font-weight:500}
+  .sw span{font:11.5px var(--mono);color:var(--mut)}
+  .tone{border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--panel)}
+  .tone .chips{display:flex;gap:4px;margin-top:8px}
+  .tone .chips i{width:24px;height:24px;border-radius:4px;border:1px solid var(--line)}
+
+  /* ui/button — buttonVariants */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;white-space:nowrap;
+    height:var(--control-md);padding:0 var(--control-pad-md);font:500 var(--control-text-md)/1 var(--sans);border:1px solid transparent;border-radius:var(--control-radius);
+    background:transparent;color:var(--text);cursor:pointer;transition:all 150ms var(--ease-standard);user-select:none}
+  .btn:focus-visible{outline:none;border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring),transparent 50%)}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.5;pointer-events:none}
+  .btn .od-icon{--od-icon-size:16px}
+  .btn-default{background:var(--primary);color:var(--primary-foreground)}
+  .btn-default:hover{background:color-mix(in oklab,var(--primary),transparent 20%)}
+  .btn-outline{border-color:var(--input);background:color-mix(in oklab,var(--input),transparent 70%)}
+  .btn-outline:hover,.btn-outline[aria-pressed=true]{background:color-mix(in oklab,var(--input),transparent 50%)}
+  .btn-secondary{background:var(--secondary)}
+  .btn-secondary:hover{background:color-mix(in oklab,var(--secondary),transparent 20%)}
+  .btn-ghost:hover{background:color-mix(in oklab,var(--panel3),transparent 50%)}
+  .btn-destructive{background:color-mix(in oklab,var(--red),transparent 80%);color:var(--red)}
+  .btn-destructive:hover{background:color-mix(in oklab,var(--red),transparent 70%)}
+  .btn-success{border-color:color-mix(in oklab,var(--green),transparent 70%);background:color-mix(in oklab,var(--green),transparent 90%);color:var(--green)}
+  .btn-success:hover{background:color-mix(in oklab,var(--green),transparent 80%)}
+  .btn-link{color:var(--primary);text-underline-offset:4px}
+  .btn-link:hover{text-decoration:underline}
+  .btn.sm{height:var(--control-sm);padding:0 var(--control-pad-sm);font-size:var(--control-text-sm);border-radius:var(--control-radius-sm);gap:4px}
+  .btn.xs{height:var(--control-xs);padding:0 var(--control-pad-xs);font-size:var(--control-text-sm);border-radius:var(--control-radius-sm);gap:4px}
+  .btn.xs .od-icon{--od-icon-size:12px}
+  .btn.lg{height:var(--control-lg);padding:0 var(--control-pad-lg)}
+  .btn.icon{width:var(--control-md);height:var(--control-md);padding:0}
+  .btn.icon-sm{width:var(--control-sm);height:var(--control-sm);padding:0;border-radius:var(--control-radius-sm)}
+  .btn.icon-xs{width:var(--control-xs);height:var(--control-xs);padding:0;border-radius:var(--control-radius-sm)}
+  .btn.icon-xs .od-icon{--od-icon-size:12px}
+  .btn.icon-lg{width:var(--control-lg);height:var(--control-lg);padding:0}
+
+  /* ui/badge — badgeVariants (x/10 fill, x/30 border) */
+  .badge{display:inline-flex;align-items:center;gap:5px;width:fit-content;height:20px;padding:0 8px;white-space:nowrap;
+    border:1px solid transparent;border-radius:9999px;font-size:11px;font-weight:400}
+  .badge .od-icon{--od-icon-size:12px}
+  .badge.count{height:18px;min-width:18px;padding:0 5px;justify-content:center}
+  .b-default{background:var(--primary);color:var(--primary-foreground)}
+  .b-secondary{background:var(--secondary);color:var(--text)}
+  .b-destructive{background:color-mix(in oklab,var(--red),transparent 80%);color:var(--red)}
+  .b-outline{border-color:var(--line);color:var(--text)}
+  .b-ghost{color:var(--text)}
+  .b-link{color:var(--primary)}
+  .b-quiet{border-color:var(--line);background:var(--secondary);color:var(--mut)}
+  .b-info,.b-success,.b-warning,.b-gate,.b-danger{border-color:color-mix(in oklab,var(--c),transparent 70%);background:color-mix(in oklab,var(--c),transparent 90%);color:var(--c)}
+  .b-info{--c:var(--cyan)} .b-success{--c:var(--green)} .b-warning{--c:var(--amber)} .b-gate{--c:var(--sand)} .b-danger{--c:var(--red)}
+  .b-needs{border-color:color-mix(in oklab,var(--orange),transparent 70%);background:var(--orange-tint);color:var(--orange-text)}
+  .b-owner{border-color:var(--line2);background:var(--panel3);color:var(--text)}
+  .b-assistant{border-color:var(--violet-line);background:var(--violet-bg);color:var(--violet-text)}
+
+  /* AgentBadge.vue — letter on its colour; radius = size/4, 10px text under 26px else 11.5px */
+  .agent{display:flex;flex:none;align-items:center;justify-content:center;font-weight:700;width:28px;height:28px;border-radius:7px;font-size:11.5px}
+  .agent.s20{width:20px;height:20px;border-radius:5px;font-size:10px}
+  .A-research{background:var(--agent-research-bg);color:var(--cyan)}
+  .A-architect{background:var(--agent-architect-bg);color:var(--blue)}
+  .A-engineer{background:var(--agent-engineer-bg);color:var(--green)}
+  .A-reviewer{background:var(--agent-reviewer-bg);color:var(--amber)}
+  .A-qa,.A-qc{background:var(--agent-qa-bg);color:var(--violet)}
+  .A-pm{background:var(--agent-pm-bg);color:var(--agent-pm)}
+  .A-chair{background:var(--agent-chair-bg);color:var(--agent-chair)}
+  .A-critic{background:var(--agent-critic-bg);color:var(--agent-critic)}
+  .A-security{background:var(--agent-security-bg);color:var(--agent-security)}
+  .A-release{background:var(--agent-release-bg);color:var(--pink)}
+  .A-human{background:var(--agent-human-bg);color:var(--sand)}
+  .A-judge{background:var(--agent-judge-bg);color:var(--sand)}
+  .A-scout{background:var(--agent-scout-bg);color:var(--blue-hi)}
+  .agent-cell{display:flex;align-items:center;gap:8px;min-width:0}
+
+  /* ItemCard.vue — board card */
+  .item{position:relative;padding:9px 10px;border-radius:8px;background:var(--panel);box-shadow:var(--shadow-card);transition:box-shadow 150ms}
+  .item:hover{box-shadow:var(--shadow-card-hover)}
+  .item.on{background:var(--panel3)}
+  .item h3{margin:4px 0 6px;font-size:13px;font-weight:600;line-height:1.35}
+  .item .meta{display:flex;align-items:center;gap:6px;color:var(--mut);font-size:12px;min-width:0}
+  .item .meta .mono{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* ui/card — Card + CardHeader/Title/Description/Content */
+  .ui-card{display:flex;flex-direction:column;gap:16px;padding:16px 0;border-radius:12px;background:var(--card);
+    box-shadow:0 0 0 1px color-mix(in oklab,var(--text),transparent 90%);font-size:14px;overflow:hidden}
+  .ui-card header,.ui-card .content{padding:0 16px}
+  .ui-card h4{margin:0;font-size:16px;font-weight:500;line-height:1.375}
+  .ui-card header p{margin:4px 0 0;color:var(--mut);font-size:14px}
+
+  /* Callout.vue */
+  .callout{border-radius:8px;background:var(--panel);box-shadow:var(--shadow-card);padding:var(--space-card);max-width:520px}
+  .callout h4{display:flex;align-items:flex-start;gap:var(--space-icon);margin:0 0 6px;font-size:13px;font-weight:600;color:var(--text)}
+  .callout .chip{display:inline-flex;flex:none;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--orange-tint);color:var(--orange)}
+  .callout.note .chip{background:var(--sand-tint);color:var(--sand)} .callout.error .chip{background:var(--red-tint);color:var(--red)}
+  .callout p{margin:0;color:var(--text2)}
+  .callout pre{margin:6px 0 8px;padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:var(--bg);
+    font:11px/1.45 var(--mono);color:var(--text2);white-space:pre-wrap;word-break:break-all}
+
+  /* ui/input, ui/textarea, ui/label */
+  .field{display:flex;flex-direction:column;gap:6px;width:260px}
+  .field label{font-size:12.5px;font-weight:500}
+  .field small{color:var(--mut);font-size:12px}
+  .field small.err{color:var(--red)}
+  .input{width:100%;height:var(--control-md);padding:4px var(--control-pad-md);border:1px solid var(--input);border-radius:var(--control-radius);
+    background:var(--background);color:var(--text);font:var(--control-text-md) var(--sans);outline:none;transition:color 150ms,border-color 150ms,box-shadow 150ms}
+  textarea.input{height:auto;min-height:64px;padding:8px 10px;resize:vertical}
+  .input::placeholder{color:var(--mut)}
+  .input:focus-visible{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring),transparent 50%)}
+  .input[aria-invalid=true]{border-color:color-mix(in oklab,var(--red),transparent 50%);box-shadow:0 0 0 3px color-mix(in oklab,var(--red),transparent 60%)}
+  .input:disabled{opacity:.5;cursor:not-allowed;background:var(--panel3)}
+
+  /* ui/tabs — TabsList (default | line) + TabsTrigger */
+  .tabs-list{display:inline-flex;align-items:center;height:32px;padding:3px;border-radius:8px;background:var(--panel3);color:var(--mut)}
+  .tabs-list.line{background:transparent;gap:4px;border-radius:0}
+  .tab{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:calc(100% - 1px);padding:2px 6px;
+    border:1px solid transparent;border-radius:6px;background:transparent;color:var(--mut);font:500 12.5px var(--sans);cursor:pointer;transition:all 150ms}
+  .tab:hover{color:var(--text)}
+  .tab[aria-selected=true]{color:var(--text);border-color:var(--input);background:color-mix(in oklab,var(--input),transparent 70%)}
+  .tabs-list.line .tab[aria-selected=true]{border-color:transparent;background:transparent}
+  .tabs-list.line .tab::after{content:"";position:absolute;inset-inline:0;bottom:-5px;height:2px;background:var(--primary);opacity:0;transition:opacity 150ms}
+  .tabs-list.line .tab[aria-selected=true]::after{opacity:1}
+  .tab-panel{margin-top:12px;color:var(--text2)}
+
+  /* ui/tooltip */
+  .tip{position:relative;display:inline-flex}
+  .tip [role=tooltip]{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);z-index:5;
+    padding:6px 12px;border-radius:6px;background:var(--popover);color:var(--text);font-size:12px;white-space:nowrap;
+    box-shadow:0 0 0 1px var(--line),0 4px 6px -1px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity 150ms}
+  .tip:hover [role=tooltip],.tip:focus-within [role=tooltip]{opacity:1}
+
+  /* ui/separator, dashed row rule */
+  .sep{height:1px;background:var(--line);border:0;margin:12px 0}
+  .rows>div{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed var(--rule)}
+  .rows>div:last-child{border-bottom:0}
+
+  /* BoardColumn.vue sample */
+  .column{width:280px;flex:none;display:flex;flex-direction:column;gap:8px;padding:8px;border-radius:8px;background:var(--bg2)}
+  .column>header{display:flex;align-items:center;gap:6px;padding:2px 4px}
+  .board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3 20 12 6 21Z"/></symbol>
+</svg>
+
+<div class="page">
+  <nav class="nav" aria-label="Sections">
+    <h1>Remit</h1>
+    <p>Components, as the Vue app draws them</p>
+    <a href="#colors">Colours</a>
+    <a href="#type">Type &amp; recipes</a>
+    <a href="#buttons">Buttons</a>
+    <a href="#badges">Badges</a>
+    <a href="#agents">Agent badges</a>
+    <a href="#cards">Cards</a>
+    <a href="#callouts">Callouts</a>
+    <a href="#inputs">Inputs</a>
+    <a href="#tabs">Tabs &amp; tooltip</a>
+    <a href="#board">Board column</a>
+  </nav>
+
+  <main>
+    <section id="colors">
+      <h2>Colours</h2>
+      <p class="lede">Surfaces step lighter as they rise. Blue is the only action colour and the owner's colour; every other hue is a state, shown as a quiet fill, a line and a lighter text.</p>
+      <div class="grid">
+        <div class="sw"><i style="background:var(--bg)"></i><div><b>--bg</b><span>#0b0d11 · canvas</span></div></div>
+        <div class="sw"><i style="background:var(--bg2)"></i><div><b>--bg2</b><span>#0f1218 · sidebars</span></div></div>
+        <div class="sw"><i style="background:var(--panel)"></i><div><b>--panel</b><span>#13171e · cards</span></div></div>
+        <div class="sw"><i style="background:var(--panel2)"></i><div><b>--panel2</b><span>#181d26 · popovers</span></div></div>
+        <div class="sw"><i style="background:var(--panel3)"></i><div><b>--panel3</b><span>#1e2430 · hover, chips</span></div></div>
+        <div class="sw"><i style="background:var(--line)"></i><div><b>--line</b><span>#262d3a · borders</span></div></div>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div class="tone"><span class="caps" style="color:var(--blue)">Blue · action, owner</span><div class="chips"><i style="background:var(--blue)"></i><i style="background:var(--blue-bg)"></i><i style="background:var(--blue-line)"></i><i style="background:var(--blue-text)"></i></div></div>
+        <div class="tone"><span class="caps" style="color:var(--green)">Green · done</span><div class="chips"><i style="background:var(--green)"></i><i style="background:var(--green-bg)"></i><i style="background:var(--green-line)"></i><i style="background:var(--green-text)"></i></div></div>
+        <div class="tone"><span class="caps" style="color:var(--amber)">Amber · warning</span><div class="chips"><i style="background:var(--amber)"></i><i style="background:var(--amber-bg)"></i><i style="background:var(--amber-bg2)"></i><i style="background:var(--amber-line)"></i></div></div>
+        <div class="tone"><span class="caps" style="color:var(--red)">Red · failed</span><div class="chips"><i style="background:var(--red)"></i><i style="background:var(--red-bg)"></i><i style="background:var(--red-line)"></i><i style="background:var(--red-text)"></i></div></div>
+        <div class="tone"><span class="caps" style="color:var(--orange)">Orange · needs the owner</span><div class="chips"><i style="background:var(--orange)"></i><i style="background:var(--orange-bg)"></i><i style="background:var(--orange-line)"></i><i style="background:var(--orange-text)"></i></div></div>
+        <div class="tone"><span class="caps" style="color:var(--sand)">Sand · gate, note</span><div class="chips"><i style="background:var(--sand)"></i><i style="background:var(--sand-bg)"></i><i style="background:var(--sand-line)"></i></div></div>
+        <div class="tone"><span class="caps" style="color:var(--violet)">Violet · Assistant</span><div class="chips"><i style="background:var(--violet)"></i><i style="background:var(--violet-bg)"></i><i style="background:var(--violet-line)"></i><i style="background:var(--violet-text)"></i></div></div>
+        <div class="tone"><span class="caps">Text</span><div class="chips"><i style="background:var(--text)"></i><i style="background:var(--text2)"></i><i style="background:var(--mut)"></i><i style="background:var(--faint)"></i></div></div>
+      </div>
+      <div class="ex" style="margin-top:12px"><p class="vue">Tailwind: <b>bg-panel2 text-mut border-line</b> · scoped CSS: <b>var(--panel2)</b> — theme.css maps every palette name to a utility</p></div>
+    </section>
+
+    <section id="type">
+      <h2>Type &amp; recipes</h2>
+      <p class="lede">Inter Variable at 13px/1.45 with "cv11", "ss01"; JetBrains Mono at 11.5px for ids, keys and values.</p>
+      <div class="ex"><div class="show" style="flex-direction:column;align-items:flex-start;gap:6px">
+        <span style="font-size:26px;font-weight:600">Page title 26</span>
+        <span style="font-size:18px;font-weight:600">Section heading 18</span>
+        <span style="font-size:15px;font-weight:600">Drawer title 15</span>
+        <span>Body 13 — the board shows every card an agent is working on.</span>
+        <span style="font-size:12px;color:var(--text2)">Secondary row 12</span>
+        <span class="caps">Goal · running 2</span>
+        <span>Branch <span class="code-chip">feat/remit-rename</span> on <span class="mono" style="color:var(--mut)">chain_8f2a1c</span></span>
+        <div class="owner-bubble">Ship the rename after the review passes.</div>
+      </div><p class="vue">recipes in theme.css: <b>class="caps"</b> · <b>class="mono"</b> · <b>class="code-chip"</b> · <b>class="owner-bubble"</b></p></div>
+    </section>
+
+    <section id="buttons">
+      <h2>Buttons</h2>
+      <p class="lede">One solid blue button per view, for its main action. The rest are outline, secondary or ghost.</p>
+      <div class="ex"><div class="show">
+        <button class="btn btn-default" type="button"><svg class="od-icon"><use href="#i-play"/></svg>Run chain</button>
+        <button class="btn btn-outline" type="button">Outline</button>
+        <button class="btn btn-secondary" type="button">Secondary</button>
+        <button class="btn btn-ghost" type="button">Ghost</button>
+        <button class="btn btn-destructive" type="button">Stop</button>
+        <button class="btn btn-success" type="button"><svg class="od-icon"><use href="#i-check"/></svg>Approve</button>
+        <button class="btn btn-link" type="button">Open log</button>
+      </div><p class="vue">&lt;<b>Button</b> variant="<b>default | outline | secondary | ghost | destructive | success | link</b>"&gt; — @/components/ui/button</p></div>
+      <div class="ex"><div class="show">
+        <button class="btn btn-outline xs" type="button">xs 24</button>
+        <button class="btn btn-outline sm" type="button">sm 26</button>
+        <button class="btn btn-outline" type="button">default 30</button>
+        <button class="btn btn-outline lg" type="button">lg 36</button>
+        <button class="btn btn-ghost icon-xs" type="button" aria-label="Close"><svg class="od-icon"><use href="#i-x"/></svg></button>
+        <button class="btn btn-ghost icon-sm" type="button" aria-label="More"><svg class="od-icon"><use href="#i-more"/></svg></button>
+        <button class="btn btn-outline icon" type="button" aria-label="Search"><svg class="od-icon"><use href="#i-search"/></svg></button>
+        <button class="btn btn-default icon-lg" type="button" aria-label="Add"><svg class="od-icon"><use href="#i-plus"/></svg></button>
+      </div><p class="vue">size="<b>xs | sm | default | lg | icon-xs | icon-sm | icon | icon-lg</b>"</p></div>
+      <div class="ex"><div class="show">
+        <button class="btn btn-outline" type="button" aria-pressed="true">Pressed</button>
+        <button class="btn btn-default" type="button" disabled>Disabled</button>
+        <span class="caps">Tab to a button to see its focus ring</span>
+      </div><p class="vue">states: hover, <b>focus-visible</b> (blue ring), <b>aria-pressed</b>, <b>disabled</b> (50 %), active presses 1px</p></div>
+    </section>
+
+    <section id="badges">
+      <h2>Badges</h2>
+      <p class="lede">Where something stands. <span class="code-chip">statusTone()</span> in ui.ts picks the tone: running → info, done → success, permission → needs, needs → warning, waiting → gate, failed → danger.</p>
+      <div class="ex"><div class="show">
+        <span class="badge b-quiet">Queued</span>
+        <span class="badge b-info">Running</span>
+        <span class="badge b-success"><svg class="od-icon"><use href="#i-check"/></svg>Done</span>
+        <span class="badge b-warning">Unverified</span>
+        <span class="badge b-gate">Waiting</span>
+        <span class="badge b-needs">Needs you</span>
+        <span class="badge b-danger"><svg class="od-icon"><use href="#i-alert"/></svg>Failed</span>
+      </div><p class="vue">&lt;<b>Badge</b> variant="<b>quiet | info | success | warning | gate | needs | danger</b>"&gt; — @/components/ui/badge</p></div>
+      <div class="ex"><div class="show">
+        <span class="badge b-owner">Owner</span>
+        <span class="badge b-assistant">Assistant</span>
+        <span class="badge b-default">Default</span>
+        <span class="badge b-secondary">Secondary</span>
+        <span class="badge b-outline">Outline</span>
+        <span class="badge b-destructive">Destructive</span>
+        <span class="badge b-ghost">Ghost</span>
+        <span class="badge b-link">Link</span>
+        <span class="row" style="gap:6px">Board <span class="badge b-quiet count">3</span></span>
+      </div><p class="vue">variant="<b>owner | assistant | default | secondary | outline | destructive | ghost | link</b>" · size="<b>count</b>"</p></div>
+    </section>
+
+    <section id="agents">
+      <h2>Agent badges</h2>
+      <p class="lede">An agent is its letter on its own colour. Unknown agents get a colour from their name.</p>
+      <div class="ex"><div class="show">
+        <span class="agent-cell"><span class="agent A-research" role="img" aria-label="Research">R</span>research</span>
+        <span class="agent-cell"><span class="agent A-architect" role="img" aria-label="Architect">A</span>architect</span>
+        <span class="agent-cell"><span class="agent A-engineer" role="img" aria-label="Engineer">E</span>engineer</span>
+        <span class="agent-cell"><span class="agent A-reviewer" role="img" aria-label="Reviewer">R</span>reviewer</span>
+        <span class="agent-cell"><span class="agent A-qa" role="img" aria-label="QA">Q</span>qa</span>
+        <span class="agent-cell"><span class="agent A-pm" role="img" aria-label="PM">P</span>pm</span>
+        <span class="agent-cell"><span class="agent A-chair" role="img" aria-label="Chair">C</span>chair</span>
+        <span class="agent-cell"><span class="agent A-critic" role="img" aria-label="Critic">C</span>critic</span>
+        <span class="agent-cell"><span class="agent A-security" role="img" aria-label="Security">S</span>security</span>
+        <span class="agent-cell"><span class="agent A-release" role="img" aria-label="Release">R</span>release</span>
+        <span class="agent-cell"><span class="agent A-human" role="img" aria-label="Human">H</span>human</span>
+        <span class="agent-cell"><span class="agent A-judge" role="img" aria-label="Judge">J</span>judge</span>
+        <span class="agent-cell"><span class="agent A-scout" role="img" aria-label="Scout">S</span>scout</span>
+        <span class="agent-cell"><span class="agent s20 A-engineer" role="img" aria-label="Engineer">E</span>size 20</span>
+      </div><p class="vue">&lt;<b>AgentBadge</b> agent="engineer" :size="28" /&gt; — radius = size/4, text 10px under 26px else 11.5px</p></div>
+    </section>
+
+    <section id="cards">
+      <h2>Cards</h2>
+      <p class="lede">The board card is flat with a half-pixel ring; hover lifts the ring, the open card fills with panel3. The generic ui/card is larger, for settings and summaries.</p>
+      <div class="ex"><div class="show" style="align-items:flex-start">
+        <article class="item" style="width:260px"><span class="caps">Engineer</span><h3>Rename the module to remit</h3><div class="meta"><span class="badge b-info">Running</span><span class="mono">feat/remit-rename</span></div></article>
+        <article class="item on" style="width:260px"><span class="caps">Open</span><h3>Review the sensor clock change</h3><div class="meta"><span class="badge b-gate">Waiting</span><span class="mono">chain_8f2a1c</span></div></article>
+      </div><p class="vue">&lt;<b>ItemCard</b>&gt; — ItemCard.vue: padding 9px 10px · radius 8 · var(--shadow-card) · .on → var(--panel3)</p></div>
+      <div class="ex"><div class="show">
+        <div class="ui-card" style="width:320px"><header><h4>Client keys</h4><p>Keys that may call this cell.</p></header><div class="content"><div class="rows"><div><span class="mono">ck_live_4f1e</span><span class="badge b-success" style="margin-left:auto">Active</span></div><div><span class="mono">ck_live_91aa</span><span class="badge b-quiet" style="margin-left:auto">Revoked</span></div></div></div></div>
+      </div><p class="vue">&lt;<b>Card</b>&gt;&lt;<b>CardHeader</b>&gt;&lt;<b>CardTitle</b>/&gt;&lt;<b>CardDescription</b>/&gt;&lt;/CardHeader&gt;&lt;<b>CardContent</b>/&gt;&lt;/Card&gt; — radius 12 · py 16 · px 16</p></div>
+    </section>
+
+    <section id="callouts">
+      <h2>Callouts</h2>
+      <p class="lede">A block that asks for attention: orange when an agent needs the owner, sand for a note, red for an error.</p>
+      <div class="ex"><div class="show" style="flex-direction:column;align-items:stretch">
+        <div class="callout"><h4><span class="chip" aria-hidden="true">⧗</span>The reviewer needs your decision</h4><p>Two findings block the merge. Approve the fix or send it back.</p></div>
+        <div class="callout note"><h4><span class="chip" aria-hidden="true">✎</span>Note</h4><p>The gate opens after the nightly checks.</p></div>
+        <div class="callout error"><h4><span class="chip" aria-hidden="true">!</span>Run failed</h4><p>The jail refused the write.</p><pre>open /data/cell/out: permission denied</pre></div>
+      </div><p class="vue">&lt;<b>Callout</b> tone="<b>ask | note | error</b>"&gt; — Callout.vue (ask is the default)</p></div>
+    </section>
+
+    <section id="inputs">
+      <h2>Inputs</h2>
+      <p class="lede">A visible label above, help or error text below. Blue ring on focus, red ring when invalid.</p>
+      <div class="ex"><div class="show" style="align-items:flex-start;gap:16px">
+        <div class="field"><label for="f1">Chain name</label><input class="input" id="f1" placeholder="e.g. nightly-review"><small>Lowercase, dashes allowed.</small></div>
+        <div class="field"><label for="f2">Sensor cron</label><input class="input" id="f2" value="every 5 mins" aria-invalid="true" aria-describedby="f2e"><small class="err" id="f2e">Use a cron line, such as */5 * * * *.</small></div>
+        <div class="field"><label for="f3">Owner key</label><input class="input" id="f3" value="ok_9c21" disabled></div>
+        <div class="field"><label for="f4">Message to the agent</label><textarea class="input" id="f4" placeholder="Say what you want done"></textarea></div>
+      </div><p class="vue">&lt;<b>Label</b> for&gt; + &lt;<b>Input</b> size="default | sm" /&gt; (the control ruler) · &lt;<b>Textarea</b> /&gt; (min-h 64) · invalid: <b>aria-invalid="true"</b></p></div>
+    </section>
+
+    <section id="tabs">
+      <h2>Tabs &amp; tooltip</h2>
+      <div class="ex"><div class="show" style="flex-direction:column;align-items:flex-start">
+        <div class="tabs-list" role="tablist" aria-label="Chain" data-tabs>
+          <button class="tab" role="tab" type="button" aria-selected="true" aria-controls="p1" id="t1">Overview</button>
+          <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="p2" id="t2" tabindex="-1">Changes</button>
+          <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="p3" id="t3" tabindex="-1">Watches</button>
+        </div>
+        <div class="tab-panel" role="tabpanel" id="p1" aria-labelledby="t1">What the chain does and who runs it.</div>
+        <div class="tab-panel" role="tabpanel" id="p2" aria-labelledby="t2" hidden>Every change, newest first.</div>
+        <div class="tab-panel" role="tabpanel" id="p3" aria-labelledby="t3" hidden>The sensors this chain listens to.</div>
+      </div><p class="vue">&lt;<b>Tabs</b>&gt;&lt;<b>TabsList</b> variant="default"&gt;&lt;<b>TabsTrigger</b> value&gt; … &lt;<b>TabsContent</b>&gt;</p></div>
+      <div class="ex"><div class="show" style="flex-direction:column;align-items:flex-start">
+        <div class="tabs-list line" role="tablist" aria-label="Agent" data-tabs>
+          <button class="tab" role="tab" type="button" aria-selected="true" aria-controls="q1" id="u1">Session</button>
+          <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="q2" id="u2" tabindex="-1">Plan</button>
+        </div>
+        <div class="tab-panel" role="tabpanel" id="q1" aria-labelledby="u1" style="margin-top:16px">The agent's turns, live.</div>
+        <div class="tab-panel" role="tabpanel" id="q2" aria-labelledby="u2" style="margin-top:16px" hidden>The steps it plans next.</div>
+      </div><p class="vue">&lt;<b>TabsList</b> variant="<b>line</b>"&gt; — blue underline under the active tab</p></div>
+      <div class="ex"><div class="show" style="padding-top:40px">
+        <span class="tip"><button class="btn btn-ghost icon-sm" type="button" aria-label="Retry" aria-describedby="tt1"><svg class="od-icon"><use href="#i-play"/></svg></button><span role="tooltip" id="tt1">Retry from the last step</span></span>
+        <span class="caps">Hover or focus the button</span>
+      </div><p class="vue">&lt;<b>Tooltip</b>&gt;&lt;<b>TooltipTrigger</b> as-child&gt;…&lt;/TooltipTrigger&gt;&lt;<b>TooltipContent</b>&gt;…&lt;/TooltipContent&gt;&lt;/Tooltip&gt;</p></div>
+    </section>
+
+    <section id="board">
+      <h2>Board column</h2>
+      <p class="lede">The parts above, together: a column header with a count, cards with a state badge and their agent.</p>
+      <div class="board">
+        <div class="column">
+          <header><span class="caps">Running</span><span class="badge b-quiet count">2</span><button class="btn btn-ghost icon-xs" type="button" aria-label="Add a card" style="margin-left:auto"><svg class="od-icon"><use href="#i-plus"/></svg></button></header>
+          <article class="item"><div class="agent-cell"><span class="agent s20 A-engineer" role="img" aria-label="Engineer">E</span><span class="caps">Engineer</span></div><h3>Rename the module to remit</h3><div class="meta"><span class="badge b-info">Running</span><span class="mono">feat/remit-rename</span></div></article>
+          <article class="item"><div class="agent-cell"><span class="agent s20 A-research" role="img" aria-label="Research">R</span><span class="caps">Research</span></div><h3>Compare Datadog signal sources</h3><div class="meta"><span class="badge b-info">Running</span><span class="mono">chain_31d0</span></div></article>
+        </div>
+        <div class="column">
+          <header><span class="caps" style="color:var(--orange-text)">Needs you</span><span class="badge b-needs count">1</span></header>
+          <article class="item"><div class="agent-cell"><span class="agent s20 A-reviewer" role="img" aria-label="Reviewer">R</span><span class="caps">Reviewer</span></div><h3>Approve the sensor clock change</h3><div class="meta"><span class="badge b-needs">Needs you</span><span class="mono">chain_8f2a1c</span></div></article>
+        </div>
+        <div class="column">
+          <header><span class="caps">Done</span><span class="badge b-quiet count">1</span></header>
+          <article class="item"><div class="agent-cell"><span class="agent s20 A-qa" role="img" aria-label="QA">Q</span><span class="caps">QA</span></div><h3>Check the jail on macOS</h3><div class="meta"><span class="badge b-success"><svg class="od-icon"><use href="#i-check"/></svg>Done</span><span class="mono">chain_77be</span></div></article>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  // Tabs: click or arrow keys move the selection; each list controls its own panels.
+  document.querySelectorAll('[data-tabs]').forEach((list) => {
+    const tabs = Array.from(list.querySelectorAll('[role=tab]'));
+    const select = (tab) => {
+      tabs.forEach((t) => {
+        const on = t === tab;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+        const panel = document.getElementById(t.getAttribute('aria-controls'));
+        if (panel) panel.hidden = !on;
+      });
+      tab.focus();
+    };
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => select(tab));
+      tab.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') select(tabs[(i + 1) % tabs.length]);
+        if (e.key === 'ArrowLeft') select(tabs[(i - 1 + tabs.length) % tabs.length]);
+      });
+    });
+  });
+</script>
+</body>
+</html>

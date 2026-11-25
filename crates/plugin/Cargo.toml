@@ -1,0 +1,21 @@
+[package]
+name = "plugin"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1.92"
+hex = "0.4.3"
+link = { path = "../link" }
+model = { path = "../model" }
+plugin-sdk = { path = "../plugin-sdk" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10.9"
+tokio = { version = "1.54.1", features = ["fs", "macros", "process", "rt-multi-thread", "sync", "time"] }
+wire = { path = "../wire" }

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "od-design-system-project/v1",
+  "id": "remit",
+  "name": "Remit",
+  "category": "Developer Tools",
+  "description": "Remit's operator console: dark-only, dense Inter + JetBrains Mono, one job per hue (blue to act, cyan at work, the owner in ink), every state in a chip or badge, never a tinted card. Extracted from web/src/style.css and theme.css.",
+  "source": {
+    "type": "local",
+    "path": "docs/design-system",
+    "importedAt": "2026-11-04"
+  },
+  "files": {
+    "design": "DESIGN.md",
+    "tokens": "tokens.css",
+    "components": "components.html"
+  },
+  "usage": "USAGE.md"
+}

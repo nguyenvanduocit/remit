@@ -1,0 +1,20 @@
+/remit
+bin/
+web/dist/*
+!web/dist/.gitkeep
+node_modules/
+web/tsconfig.tsbuildinfo
+web/src/core/pkg/
+.superpowers/
+**/.claude/settings.local.json
+/target
+/references/
+__pycache__/
+.vitest/
+/reports/
+/.blaze/
+
+# Local secrets (the owner's keys) never enter the repository
+.env
+.env.*
+!.env.example

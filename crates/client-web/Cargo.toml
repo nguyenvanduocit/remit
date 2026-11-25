@@ -1,0 +1,43 @@
+[package]
+name = "client-web"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# cdylib: the wasm module wasm-bindgen binds for the browser and, with `fake`, for vitest in Node. rlib: the workspace
+# builds and checks it natively like any crate.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# A server half of the link in the module itself, answering from a seed the page or the test hands it: vitest and the
+# verify pages run the real core with no WebTransport. The browser build leaves it out.
+fake = []
+
+[dependencies]
+link = { path = "../link" }
+replica = { path = "../replica" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+# `Told` and `Ask` cross to the page as structured-clone objects (ADR-0095 decision 5).
+serde-wasm-bindgen = "0.6.5"
+# The version wasm-bindgen-cli binds with must be this one exactly (ADR-0072 decision 8, P5).
+wasm-bindgen = "=0.2.130"
+js-sys = "0.3.107"
+# The fake server waits for a page's answer given as a promise (fake.rs).
+wasm-bindgen-futures = "0.4.80"
+wire = { path = "../wire" }
+
+# The browser's WebTransport (moq-dev's web-transport). It needs `--cfg=web_sys_unstable_apis`, which
+# `.cargo/config.toml` sets for wasm32.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+futures-channel = "0.3.31"
+futures-core = "0.3.31"
+url = "2.5.8"
+# The SharedWorker's ports and the Web Locks that say a tab is gone (`worker.rs`).
+web-sys = { version = "0.3.107", features = ["Lock", "LockManager", "MessageEvent", "MessagePort", "WorkerGlobalScope", "WorkerNavigator"] }
+web-transport = "0.13.9"

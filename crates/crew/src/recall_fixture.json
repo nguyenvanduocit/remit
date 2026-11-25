@@ -1,0 +1,34 @@
+[
+  { "query": "cargo fmt changed files I did not touch", "answers": ["mem_86914550cd3b"] },
+  {
+    "query": "how should I write the verdict of a branch review",
+    "answers": ["mem_30abba01a6f6", "mem_0a21910ab7b8", "mem_37400416c273", "mem_39f507bf1caa", "mem_4327106b7b87"]
+  },
+  { "query": "viết commit message cho hiệu ứng mới thế nào", "answers": ["mem_975d28c5a4e1", "mem_2349047dd4af"] },
+  {
+    "query": "kiểm tra hiệu ứng sprite bằng mắt từng khung hình",
+    "answers": ["mem_8c996381ffb0", "mem_5f6e47ba3c20", "mem_5b560e852085"]
+  },
+  { "query": "record_verdict fails with uncommitted changes", "answers": ["mem_df7bb81124e8", "mem_e26ae9acc1c5"] },
+  {
+    "query": "golden files conflict when merging two effect branches",
+    "answers": ["mem_69aea575b260", "mem_c09910af6084"]
+  },
+  { "query": "mục tiêu không rõ ràng", "answers": ["mem_297cd98c188b"] },
+  {
+    "query": "benchmark numbers look slow, maybe other processes are running",
+    "answers": ["mem_addfe7766f05", "mem_59b4c40ad05d"]
+  },
+  {
+    "query": "acceptance criteria for a slice so the implementer cannot cheat",
+    "answers": ["mem_81fd8ec8e900", "mem_0d1dce33b9f6", "mem_9d5e903166fd"]
+  },
+  { "query": "random noise in sprite effects must be deterministic", "answers": ["mem_ec910fac29fd"] },
+  { "query": "add a new pixfx effect, where do I register it", "answers": ["mem_161db6b2b2d5", "mem_11da07ec6998"] },
+  { "query": "tôi có nên chạy song song các bước QC không", "answers": ["mem_273921ef7034"] },
+  { "query": "fix the login page css", "answers": [] },
+  { "query": "deploy the kubernetes cluster to production", "answers": [] },
+  { "query": "rotate the database password", "answers": [] },
+  { "query": "thời tiết hôm nay thế nào", "answers": [] },
+  { "query": "write a SQL migration adding a column", "answers": [] }
+]

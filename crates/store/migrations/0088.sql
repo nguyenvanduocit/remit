@@ -1,0 +1,4 @@
+
+CREATE TABLE IF NOT EXISTS helps (id TEXT PRIMARY KEY, chain TEXT NOT NULL, card TEXT NOT NULL, mentor TEXT NOT NULL, created_at INTEGER NOT NULL, doc TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS helps_chain ON helps(chain);
+CREATE INDEX IF NOT EXISTS helps_mentor ON helps(mentor);

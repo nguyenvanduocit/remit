@@ -1,0 +1,26 @@
+<script setup lang="ts">
+import type { HTMLAttributes } from 'vue'
+import type { InputGroupVariants } from '.'
+import { cn } from '@/lib/utils'
+import { inputGroupVariants } from '.'
+
+const props = defineProps<{
+  size?: InputGroupVariants['size']
+  class?: HTMLAttributes['class']
+}>()
+</script>
+
+<template>
+  <div
+    data-slot="input-group"
+    :data-size="size"
+    role="group"
+    :class="cn(
+      'border-input bg-background has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:outline-2 has-[[data-slot=input-group-control]:focus-visible]:outline-offset-2 has-[[data-slot=input-group-control]:focus-visible]:outline-solid has-[[data-slot=input-group-control]:focus-visible]:outline-ring has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40 has-disabled:bg-muted border transition-colors in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0 has-disabled:opacity-50 has-[[data-slot][aria-invalid=true]]:ring-3 has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3 has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=inline-end]]:[&>input]:pr-1.5 has-[>[data-align=inline-start]]:[&>input]:pl-1.5 group/input-group relative flex w-full min-w-0 items-center outline-none has-[>textarea]:h-auto',
+      inputGroupVariants({ size }),
+      props.class,
+    )"
+  >
+    <slot />
+  </div>
+</template>

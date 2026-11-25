@@ -1,0 +1,2 @@
+
+CREATE TABLE cleanups (chain_id TEXT PRIMARY KEY, doc TEXT NOT NULL);

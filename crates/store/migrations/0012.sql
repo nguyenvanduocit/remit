@@ -1,0 +1,4 @@
+
+CREATE TABLE requests (id TEXT PRIMARY KEY, method TEXT NOT NULL, by TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0,
+  answer TEXT, error TEXT NOT NULL DEFAULT '', at INTEGER NOT NULL);
+CREATE INDEX requests_at ON requests(at);

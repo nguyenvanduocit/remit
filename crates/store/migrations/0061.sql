@@ -1,0 +1,2 @@
+
+CREATE TABLE IF NOT EXISTS disabled_extensions (id TEXT PRIMARY KEY, doc TEXT NOT NULL);

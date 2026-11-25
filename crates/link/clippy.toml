@@ -1,0 +1,27 @@
+# The lints of a pure crate: the workspace's (clippy reads only the nearest clippy.toml, so the root's lines are copied
+# here), and no I/O. Every pure crate's clippy.toml holds these same lines; a change to one is made to all of them.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+disallowed-methods = [
+    { path = "std::fs::read", reason = "the pure core does no I/O: its caller reads the file" },
+    { path = "std::fs::read_to_string", reason = "the pure core does no I/O: its caller reads the file" },
+    { path = "std::fs::write", reason = "the pure core does no I/O: its caller writes the file" },
+    { path = "std::fs::File::open", reason = "the pure core does no I/O: its caller opens the file" },
+    { path = "std::fs::File::create", reason = "the pure core does no I/O: its caller creates the file" },
+    { path = "std::fs::read_dir", reason = "the pure core does no I/O: its caller lists the directory" },
+    { path = "std::process::Command::new", reason = "the pure core starts no process" },
+    { path = "tokio::process::Command::new", reason = "the pure core starts no process", allow-invalid = true },
+    { path = "rusqlite::Connection::open", reason = "the pure core opens no database", allow-invalid = true },
+    { path = "rusqlite::Connection::open_with_flags", reason = "the pure core opens no database", allow-invalid = true },
+    { path = "rusqlite::Connection::open_with_flags_and_vfs", reason = "the pure core opens no database", allow-invalid = true },
+    { path = "rusqlite::Connection::open_in_memory", reason = "the pure core opens no database", allow-invalid = true },
+    { path = "rusqlite::Connection::open_in_memory_with_flags", reason = "the pure core opens no database", allow-invalid = true },
+    { path = "std::net::TcpStream::connect", reason = "the pure core opens no connection" },
+    { path = "std::net::TcpListener::bind", reason = "the pure core listens on nothing" },
+    { path = "std::net::UdpSocket::bind", reason = "the pure core opens no socket" },
+    { path = "std::time::SystemTime::now", reason = "the pure core is given the time by its caller" },
+    { path = "std::env::var", reason = "the pure core is given its configuration by its caller" },
+    { path = "std::env::vars", reason = "the pure core is given its configuration by its caller" },
+]

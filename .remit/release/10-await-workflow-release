@@ -1,0 +1,38 @@
+#!/bin/sh
+# Remit's release (ADR-0116). The workflow (.github/workflows/release.yml) builds, tests and publishes every push to
+# master as a GitHub release tagged <yyyymmdd>-<short sha> (scripts/release_tag.sh). This step waits for that release of
+# REMIT_RELEASE_COMMIT, reading it through the github connection behind Remit's proxy (a read: the proxy adds the
+# credential, the step holds none), and reports its tag in REMIT_RELEASE_OUT; Remit then installs that tag on the
+# server this repository runs (`install_release`). It exits 75 while the release is not published yet, so Remit asks
+# again at its next sync and takes nothing back; a commit whose checks fail on the forge is taken back by Remit.
+set -eu
+
+: "${REMIT_RELEASE_REPOSITORY:?}" "${REMIT_RELEASE_COMMIT:?}" "${REMIT_RELEASE_OUT:?}"
+
+repo=${REMIT_RELEASE_REPOSITORY#*/} # github.com/owner/name: owner/name
+
+releases=$(curl -fsS --max-time 60 -H 'Accept: application/vnd.github+json' \
+	"https://api.github.com/repos/$repo/releases?per_page=50") || {
+	echo "the forge did not answer for $repo's releases" >&2
+	exit 75
+}
+
+# the published (not draft) release whose tag ends in a prefix of the commit, as release_tag.sh names it
+tag=$(printf '%s' "$releases" | python3 -c '
+import json, sys
+commit = sys.argv[1]
+for r in json.load(sys.stdin):
+    short = r.get("tag_name", "").rpartition("-")[2]
+    if len(short) >= 7 and commit.startswith(short) and not r.get("draft"):
+        print(r["tag_name"])
+        break
+' "$REMIT_RELEASE_COMMIT")
+
+if [ -z "$tag" ]; then
+	echo "no release of $REMIT_RELEASE_COMMIT published yet; the workflow builds it" >&2
+	exit 75
+fi
+
+printf '{"released": true, "version": "%s", "links": ["https://github.com/%s/releases/tag/%s"]}\n' \
+	"$tag" "$repo" "$tag" >"$REMIT_RELEASE_OUT"
+echo "released $tag"

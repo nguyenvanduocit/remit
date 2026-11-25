@@ -1,0 +1,18 @@
+[package]
+name = "judgment"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Remit's decision layer (ADR-0118), pure: typed questions, what an answer picks, a decider's standing, and the port a decider is asked through"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1.92"
+hex = "0.4.3"
+model = { path = "../model" }
+serde_json = "1"
+sha2 = "0.10.9"
+thiserror = "2.0.21"

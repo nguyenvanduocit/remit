@@ -1,0 +1,21 @@
+# systemd unit for Remit, installed as /etc/systemd/system/remit.service (docs/deploy.md). Replace the three
+# placeholders: User (the OS user that owns the data directory, the `claude` login and the git/glab credentials; agents
+# run as this user), WorkingDirectory (the checkout the binary was built in) and the flags of ExecStart.
+[Unit]
+Description=Remit
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=remit
+WorkingDirectory=/opt/remit
+ExecStart=/opt/remit/bin/remit -addr 127.0.0.1:4320 -data /var/lib/remit
+Restart=always
+RestartSec=2
+# Remit ends the agent processes it started itself, cancelling their turns so the next start resumes them: systemd
+# must signal only the server, as its default (the whole control group) would kill agents mid-turn.
+KillMode=process
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+[package]
+name = "tsgen"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Writes the TypeScript of a wire contract from the wire crate's source"
+
+[lints]
+workspace = true
+
+[dependencies]
+# span-locations: an error names the line of the wire source it is about.
+proc-macro2 = { version = "1.0.107", features = ["span-locations"] }
+quote = "1.0.47"
+syn = { version = "2.0.119", features = ["full"] }

@@ -1,0 +1,129 @@
+# Every push to master is built, tested and published as a GitHub release tagged `<yyyymmdd>-<short sha>`
+# (scripts/release_tag.sh), the form `remit update` reads the commit from (ADR-0087). Nothing is published unless every
+# test passed. A release holds the linux-amd64 server (web app embedded) and client, and their SHA256SUMS (which
+# `remit update` checks the server against on the machine that runs it). rustup reads
+# rust-toolchain.toml and installs the pinned compiler and the wasm32 target on first use.
+#
+# The repository's code runs only under a read-only token: `build` compiles and tests the pushed commit and hands the
+# release files on as an artifact, and `publish`, the one job that may write, runs none of the repository's code and
+# only uploads those files.
+name: release
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+env:
+  ASSETS: remit-linux-amd64 remit-client-linux-amd64 SHA256SUMS
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      complete: ${{ steps.tag.outputs.complete }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The release's tag
+        id: tag
+        # A run made again (a re-run, or a commit pushed twice) builds nothing when the release it published holds every
+        # file; a release left without some of them is built again and completed by `publish`.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(scripts/release_tag.sh "$GITHUB_SHA")
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          have=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft,assets \
+            -q 'select(.isDraft | not) | .assets[].name' 2>/dev/null || true)
+          for a in $ASSETS; do
+            printf '%s\n' "$have" | grep -qxF "$a" || exit 0
+          done
+          echo "complete=true" >>"$GITHUB_OUTPUT"
+
+  build:
+    needs: tag
+    if: needs.tag.outputs.complete != 'true'
+    runs-on: ubuntu-latest
+    # A release takes about 18 minutes uncached; a hung test fails the release here instead of after GitHub's 6 hours.
+    timeout-minutes: 45
+    # Only the newest push is worth building: a newer push cancels the build under way, since its release would be
+    # replaced at once. Publishing is never cancelled (its own group below), so no release is left half uploaded.
+    concurrency:
+      group: release-build
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the binary reports the commit it was built from
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,wasm-bindgen-cli@0.2.130 # the version crates/client-web pins
+      - name: Git identity for the tests that commit
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@invalid
+      - name: Allow the user namespaces the jail makes
+        # ubuntu-24.04 restricts unprivileged user namespaces through AppArmor, and the jail (ADR-0021) makes one for every
+        # agent session: without this the jail, agent and claudecode tests fail with "permission denied".
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # Formatting needs no build: checked first, a badly formatted push fails in seconds rather than after the build.
+      - run: cargo fmt --all --check
+      - uses: Swatinem/rust-cache@v2
+      - run: make deps build test
+      - name: Collect the release files
+        run: |
+          mkdir dist
+          cp bin/remit dist/remit-linux-amd64
+          cp bin/remit-client dist/remit-client-linux-amd64
+          cd dist && sha256sum -- * > SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [tag, build]
+    runs-on: ubuntu-latest
+    # One publish at a time, in push order: a publish under way finishes, and of those behind it only the newest waits.
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: dist
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.tag.outputs.tag }}
+        # The release makes its tag, on the commit that was built and tested. A release that already exists (a run that
+        # stopped halfway, possibly still a draft) gets this build's whole set, so SHA256SUMS matches every file in it,
+        # and is then published; it is never created twice.
+        run: |
+          cd dist
+          for a in $ASSETS; do test -f "$a"; done
+          sha256sum -c SHA256SUMS
+          if draft=$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null); then
+            # shellcheck disable=SC2086 # ASSETS is a list of file names
+            gh release upload "$TAG" $ASSETS -R "$GITHUB_REPOSITORY" --clobber
+            if [ "$draft" = true ]; then
+              gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --draft=false
+            fi
+          else
+            # shellcheck disable=SC2086 # ASSETS is a list of file names
+            gh release create "$TAG" $ASSETS -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+          fi

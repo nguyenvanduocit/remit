@@ -1,0 +1,95 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+# The compiler only helps while nothing bypasses it: these hold for every crate, each of which takes
+# them with `[lints] workspace = true`. Outside tests, code that can panic or silently change a value does not compile: an index is
+# `get`, arithmetic is `checked_*`/`saturating_*`, a cast is `From`/`TryFrom`, an ignored result is handled. A finding that
+# is right where it stands is kept with `#[expect(lint, reason = "...")]` at its line, which warns once it no longer applies.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+indexing_slicing = "deny"
+arithmetic_side_effects = "deny"
+as_conversions = "deny"
+let_underscore_must_use = "deny"
+mem_forget = "deny"
+await_holding_lock = "deny"
+await_holding_refcell_ref = "deny"
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+# A clone whose value is never used after it: the rule against `clone()` added only to satisfy the borrow checker, which
+# clippy keeps in its nursery group, off by default.
+redundant_clone = "deny"
+
+[workspace.dependencies]
+serde_json = "1"
+
+# Line tables (file:line, no variables) in every build: a panic or a backtrace on the machine that runs a release names
+# where it happened, at a fraction of full debug info's size and build time.
+[profile.dev]
+debug = "line-tables-only"
+
+# tsgen parses the contracts with syn at every `make gen`; unoptimised, that parse alone takes seconds.
+[profile.dev.package.syn]
+opt-level = 3
+
+[profile.dev.package.proc-macro2]
+opt-level = 3
+
+# auth's tests make an RSA key to sign ID tokens with; unoptimised, finding its primes takes seconds.
+[profile.dev.package.num-bigint-dig]
+opt-level = 3
+
+[profile.dev.package.rsa]
+opt-level = 3
+
+[profile.release]
+debug = "line-tables-only"
+# The binary crate (crates/remit) is rebuilt at every release, as it embeds web/dist and its commit: whole, it is
+# optimised again in 3m22s; incremental, in 22s (measured 2026-11-25). Remit waits on I/O and agents, not on the code
+# incremental optimises a little less.
+incremental = true
+
+# The client core as make dev binds it: optimised enough to run like the shipped one, built in seconds (no LTO,
+# incremental, many codegen units) since dev rebinds it whenever a source it reads changes.
+[profile.wasm-dev]
+inherits = "release"
+debug = false
+opt-level = 1
+incremental = true
+codegen-units = 256
+panic = "abort"
+
+# The client core shipped to browsers: smallest wasm (ADR-0072 P5 measures it gzipped). A panic aborts, as wasm32 has no
+# unwinding to catch it.
+[profile.wasm]
+inherits = "release"
+debug = false
+opt-level = "z"
+lto = "fat"
+incremental = false
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# cosmic-text 0.19.0 starts a line-clamped paragraph's last line at the space
+# before its first word; upstream fixed it after the release (c5d3205, "fix
+# ellipsize on last line"). shadcn-rs's `gui` needs it (its ADR-0006), and Cargo
+# applies only the root workspace's patches, so the desktop app's workspace
+# carries it too. Back to crates.io at the next release.
+[patch.crates-io]
+cosmic-text = { git = "https://github.com/pop-os/cosmic-text", rev = "c5d32054ad0f284873e344e0ea87902d9dc2bca8" }

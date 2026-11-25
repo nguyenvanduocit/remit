@@ -1,0 +1,205 @@
+/* Tailwind (its theme, preflight and utilities), shadcn-vue's variants, and the app's tokens and base (style.css). Each
+   component carries its own styles: utilities in its template, the rest in its <style scoped>.
+
+   Adding components: `npx shadcn-vue@latest add <name>` also appends a Google Fonts @import to the top of this file and a
+   second `@layer base` block at the bottom. Delete both; the fonts ship with the app and the base rules are in style.css. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn-vue/tailwind.css";
+@import "vue-sonner/style.css" layer(components);
+@import "./style.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Recipes used across components, named once. */
+@utility mono {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+/* a small section label: GOAL, RUNNING 2, STARTED BY REMIT. A label in a tone's colour sets it after this. */
+@utility caps {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+
+/* a small control the pointer can hit: its box reaches 24px each way (WCAG 2.5.8) through a transparent layer centred on it,
+   so it looks and sits as before. The layer is clipped by an ancestor or the control itself with overflow hidden: a control
+   that truncates grows by min-h-6 instead. */
+@utility hit {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 24px);
+    height: max(100%, 24px);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* a bit of code inside a line of text: a field name, a value, inline code in Markdown */
+@utility code-chip {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--panel3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+/* what the owner wrote, in a conversation (a message to an agent, his turn in a review thread): in ink, as the owner is
+   (ADR-0090), on a raised surface with the tail at his side; the padding is the conversation's own */
+@utility owner-bubble {
+  border: 1px solid var(--line2);
+  border-radius: 12px 12px 3px 12px;
+  background: var(--panel3);
+}
+
+/* shadcn's token names, pointing at the palette in style.css (`:root` there stays the single source of colour).
+   The app is dark-only; a light theme would move these values under `:root` and the dark ones under `.dark`. */
+:root {
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--panel);
+  --card-foreground: var(--text);
+  --popover: var(--panel2);
+  --popover-foreground: var(--text);
+  --primary: var(--blue);
+  --primary-foreground: var(--on-primary);
+  --secondary: var(--panel2);
+  --secondary-foreground: var(--text);
+  --muted: var(--panel3);
+  --muted-foreground: var(--mut);
+  --accent: var(--panel3);
+  --accent-foreground: var(--text);
+  --destructive: var(--red);
+  --border: var(--line);
+  --input: var(--line3);
+  --ring: var(--blue);
+  --success: var(--green);
+  --warning: var(--amber);
+  --info: var(--cyan);
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --font-sans: var(--sans);
+  --font-heading: var(--font-sans);
+  --font-mono: var(--mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  /* The palette by its own names, for utilities (bg-panel2, text-mut, border-line2). */
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg2);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-panel3: var(--panel3);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-line3: var(--line3);
+  --color-rule: var(--rule);
+  --color-text: var(--text);
+  --color-text2: var(--text2);
+  --color-mut: var(--mut);
+  --color-faint: var(--faint);
+  --color-blue: var(--blue);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-red: var(--red);
+  --color-violet: var(--violet);
+  --color-cyan: var(--cyan);
+  --color-sand: var(--sand);
+  --color-orange: var(--orange);
+  --color-blue-tint: var(--blue-tint);
+  --color-blue-bg: var(--blue-bg);
+  --color-blue-line: var(--blue-line);
+  --color-blue-text: var(--blue-text);
+  --color-blue-hi: var(--blue-hi);
+  --color-blue-mark: var(--blue-mark);
+  --color-green-tint: var(--green-tint);
+  --color-green-bg: var(--green-bg);
+  --color-green-line: var(--green-line);
+  --color-green-text: var(--green-text);
+  --color-orange-tint: var(--orange-tint);
+  --color-orange-bg: var(--orange-bg);
+  --color-orange-line: var(--orange-line);
+  --color-orange-text: var(--orange-text);
+  --color-amber-bg: var(--amber-bg);
+  --color-amber-bg2: var(--amber-bg2);
+  --color-amber-line: var(--amber-line);
+  --color-red-tint: var(--red-tint);
+  --color-red-bg: var(--red-bg);
+  --color-red-bg2: var(--red-bg2);
+  --color-red-line: var(--red-line);
+  --color-red-text: var(--red-text);
+  --color-red-hi: var(--red-hi);
+  --color-cyan-tint: var(--cyan-tint);
+  --color-cyan-bg: var(--cyan-bg);
+  --color-cyan-line: var(--cyan-line);
+  --color-cyan-text: var(--cyan-text);
+  --color-well: var(--well);
+  --color-violet-bg: var(--violet-bg);
+  --color-violet-line: var(--violet-line);
+  --color-violet-text: var(--violet-text);
+  --color-sand-tint: var(--sand-tint);
+  --color-sand-bg: var(--sand-bg);
+  --color-sand-line: var(--sand-line);
+  --color-veil: var(--veil);
+  --color-veil2: var(--veil2);
+  /* The control ruler (style.css): h-control-md, px-control-pad-md, text-control-md, rounded-control. */
+  --spacing-control-xs: var(--control-xs);
+  --spacing-control-sm: var(--control-sm);
+  --spacing-control-md: var(--control-md);
+  --spacing-control-lg: var(--control-lg);
+  --spacing-control-pad-xs: var(--control-pad-xs);
+  --spacing-control-pad-sm: var(--control-pad-sm);
+  --spacing-control-pad-md: var(--control-pad-md);
+  --spacing-control-pad-lg: var(--control-pad-lg);
+  --text-control-sm: var(--control-text-sm);
+  --text-control-md: var(--control-text-md);
+  --radius-control-sm: var(--control-radius-sm);
+  --radius-control: var(--control-radius);
+  /* The rhythms (style.css): gap-icon, gap-stack, p-card, gap-gutter, px-pane. */
+  --spacing-icon: var(--space-icon);
+  --spacing-stack: var(--space-stack);
+  --spacing-card: var(--space-card);
+  --spacing-gutter: var(--space-gutter);
+  --spacing-pane: var(--space-pane);
+  /* The type: text-read for what the owner reads at length, text-meta beside it. */
+  --text-read: var(--size-read);
+  --text-read--line-height: var(--leading-read);
+  --text-meta: var(--size-meta);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}

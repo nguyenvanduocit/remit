@@ -1,0 +1,9 @@
+#!/bin/sh
+# Runs before every commit (`make hooks` points core.hooksPath here): a commit whose Rust does not pass clippy is refused.
+# `scripts/test_changed.sh --lint` runs clippy over the crates the staged files belong to and the crates that depend on
+# them, so a commit answers for what it can break and not for what other work left in the tree.
+set -eu
+files=$(git diff --cached --name-only --diff-filter=ACMRD)
+[ -z "$files" ] && exit 0
+# shellcheck disable=SC2086 # the files are separate words
+exec scripts/test_changed.sh --lint $files

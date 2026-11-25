@@ -1,0 +1,31 @@
+[package]
+name = "desktop"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "remit-desktop"
+path = "src/main.rs"
+
+[dependencies]
+# The GUI framework and shadcn/ui's components, their own project (shadcn-rs); a
+# change there reaches the app when this commit moves.
+gui = { git = "https://github.com/nguyenvanduocit/shadcn-rs", rev = "c4fb22f5af764c533aa35ff394fbb8f648e11d15" }
+shadcn = { git = "https://github.com/nguyenvanduocit/shadcn-rs", rev = "c4fb22f5af764c533aa35ff394fbb8f648e11d15" }
+# The client core the web runs too, and the link it speaks (ADR-0128).
+link = { path = "../link" }
+link-quic = { path = "../link-quic" }
+model = { path = "../model" }
+# Where a server's link is and the certificate to believe there: one owner of that (`dial`).
+remit-client = { path = "../remit-client" }
+replica = { path = "../replica" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { version = "1.54.1", features = ["rt", "macros", "sync", "time"] }
+time = { version = "0.3", features = ["formatting", "parsing", "local-offset"] }
+wire = { path = "../wire" }

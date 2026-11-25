@@ -1,0 +1,22 @@
+[package]
+name = "workflow"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+hex = "0.4"
+model = { path = "../model" }
+oxc_allocator = "0.158"
+oxc_ast = "0.158"
+oxc_parser = "0.158"
+oxc_span = "0.158"
+# Default features only (`std`): no async runtime, module loader or threads in the VM (ADR-0075, decision 2).
+rquickjs = "0.14"
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = "0.10"

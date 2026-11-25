@@ -1,0 +1,4 @@
+
+CREATE TABLE IF NOT EXISTS duels (id TEXT PRIMARY KEY, chain TEXT NOT NULL, work TEXT NOT NULL, created_at INTEGER NOT NULL, doc TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS duels_chain ON duels(chain);
+CREATE INDEX IF NOT EXISTS duels_work ON duels(work);
