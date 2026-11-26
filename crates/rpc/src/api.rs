@@ -331,6 +331,22 @@ impl Handler for Api {
         )
     }
 
+    async fn card_process_kill(
+        &self,
+        request: Request,
+        card_id: String,
+        kill_token: String,
+        why: String,
+    ) -> Result<Ack, Failure> {
+        done(
+            "card_process_kill",
+            self.o
+                .core
+                .kill_card_process(self.request(request), card_id, kill_token, why)
+                .await,
+        )
+    }
+
     async fn card_task_stop(&self, request: Request, event_id: i64) -> Result<Ack, Failure> {
         done(
             "card_task_stop",

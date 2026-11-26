@@ -1433,6 +1433,8 @@ pub struct SessionProcess {
     pub cpu_percent: Option<f32>,
     pub resident_bytes: u64,
     pub elapsed_seconds: u64,
+    /// A target bound to this process instance, when the runtime can safely signal it.
+    pub kill_token: Option<String>,
 }
 
 /// An OS snapshot for a card's session. Subagents share the root card's session.
@@ -2351,6 +2353,8 @@ link::contract! {
         card_stop(card_id: String, why: String) -> Card;
         /// Says why a stopped agent was stopped, after the stop: its Chair is told and its stream says it.
         card_stop_explain(card_id: String, why: String) -> Ack;
+        /// Force kills one live OS process from the card’s process tree, bound to the instance shown.
+        card_process_kill(card_id: String, kill_token: String, why: String) -> Ack;
         /// Ends the background task of event `event_id` (a background shell, a Monitor); the agent goes on and is told.
         card_task_stop(event_id: i64) -> Ack;
         /// The owner picks `picked` (option ids) in the choice `part` of the block event `event_id` (ADR-0091): the block

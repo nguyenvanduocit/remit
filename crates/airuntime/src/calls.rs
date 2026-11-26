@@ -83,6 +83,16 @@ impl<L: Link> to_runtime::Handler for Calls<L> {
         self.session(&session_id)?.task_output(task_id).await.map_err(failed)
     }
 
+    async fn session_process_kill(&self, session_id: String, kill_token: String) -> Result<Ack, Failure> {
+        self.session(&session_id)?
+            .live()
+            .map_err(failed)?
+            .kill_process(kill_token)
+            .await
+            .map_err(failed)?;
+        Ok(Ack {})
+    }
+
     /// Starts opening the session the core asks for, once, and answers at once: how the open ended is the session's
     /// opened entry. The same session id asked again (its answer lost) opens nothing more. The open runs under the
     /// runtime's life, not the call's, and never holds this call's queue. A spec the runtime cannot take fails the

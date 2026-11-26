@@ -1148,6 +1148,8 @@ export type SessionProcess = {
   cpuPercent: number | null;
   residentBytes: number;
   elapsedSeconds: number;
+  /** A target bound to this process instance, when the runtime can safely signal it. */
+  killToken: string | null;
 };
 
 /** An OS snapshot for a card's session. Subagents share the root card's session. */

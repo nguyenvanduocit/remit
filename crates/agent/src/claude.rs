@@ -457,6 +457,16 @@ impl Session for ClaudeSession {
         })
     }
 
+    fn kill_process(&self, kill_token: String) -> BoxFuture<'_, Result<(), Error>> {
+        let conn = Arc::clone(&self.conn);
+        let sampler = Arc::clone(&self.processes);
+        Box::pin(async move {
+            tokio::task::spawn_blocking(move || crate::processes::kill(&conn, &sampler, &kill_token))
+                .await
+                .map_err(|e| Error::TurnFailed(format!("force kill the session's process: {e}")))?
+        })
+    }
+
     /// Counts what fills the context now.
     fn context(&self) -> BoxFuture<'_, Result<model::SessionContext, Error>> {
         Box::pin(async move { Ok(session_context(&self.id, self.conn.context_usage().await?)) })

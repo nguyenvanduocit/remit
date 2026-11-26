@@ -307,6 +307,16 @@ impl Handler for MentorApi {
         Err(denied("card_stop_explain"))
     }
 
+    async fn card_process_kill(
+        &self,
+        _request: Request,
+        _card_id: String,
+        _kill_token: String,
+        _why: String,
+    ) -> Result<Ack, Failure> {
+        Err(denied("card_process_kill"))
+    }
+
     async fn card_task_stop(&self, _request: Request, _event_id: i64) -> Result<Ack, Failure> {
         Err(denied("card_task_stop"))
     }

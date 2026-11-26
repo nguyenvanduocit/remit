@@ -3,12 +3,13 @@
 // /verify/context.html and press the meter, or ?panel=session to land on the panel; ?counted=none answers as for a
 // session Claude Code has not counted yet, ?counted=stored as for one whose process did not answer now, ?loaded=none as
 // for one whose first turn has not reported what it loaded, ?given=none as for one whose start Remit has not recorded, ?telemetry=none as for one that exported nothing yet,
-// ?slow=1 answers after two seconds.
+// ?slow=1 answers after two seconds. ?processes=stale refuses a force kill as for a process that has already ended.
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import { createApp, h } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import CardDrawer from '../src/components/CardDrawer.vue';
+import { Toaster } from '../src/components/ui/sonner';
 import { TooltipProvider } from '../src/components/ui/tooltip';
 import { apiKey } from '../src/core/api';
 import { api } from '../src/replica';
@@ -41,6 +42,13 @@ const view: ChainView = {
   cards: [card], edges: [], retrospectives: [], decisions: [], helps: [], verification: { chainId: '', gates: [], judges: [], rev: 0 }, datadog: [], landings: [], drafts: [], workflows: [], agents: [],
   standing: stands('ch', 'Running', 'running'),
 };
+const killedProcesses = new Set<string>();
+const processes = () => processesOf({
+  stopped: params.get('processes') === 'stopped',
+  shared: params.get('processes') === 'shared',
+  cpu: 118.4 + (processSample++ % 5),
+  killed: killedProcesses,
+});
 fakeServer({
   appSnapshot: () => snapshotOf({}),
   cardContext: async () => {
@@ -48,11 +56,14 @@ fakeServer({
     const counted = params.get('counted') === 'none' ? 'none' : params.get('counted') === 'stored' ? 'stored' : 'now';
     return contextOf(card, { counted, loaded: params.get('loaded') !== 'none', given: params.get('given') === 'none' ? null : undefined });
   },
-  cardProcesses: async () => processesOf({
-    stopped: params.get('processes') === 'stopped',
-    shared: params.get('processes') === 'shared',
-    cpu: 118.4 + (processSample++ % 5),
-  }),
+  cardProcesses: processes,
+  cardProcessKill: (cardId, killToken) => {
+    if (cardId !== card.id || params.get('processes') === 'stale' || !processes().processes.some((process) => process.killToken === killToken)) {
+      throw new Error('The process has already ended.');
+    }
+    killedProcesses.add(killToken);
+    return {};
+  },
   cardTelemetry: async () => telemetryOf({ none: params.get('telemetry') === 'none' }),
 });
 
@@ -60,7 +71,7 @@ const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '
 await router.push({ path: '/', query: params.get('panel') ? { panel: params.get('panel')! } : {} });
 createApp({
   render: () =>
-    h(TooltipProvider, { delayDuration: 300 }, () => h('div', { class: 'flex h-screen justify-end' }, [h(CardDrawer, { view, card })])),
+    h(TooltipProvider, { delayDuration: 300 }, () => h('div', { class: 'flex h-screen justify-end' }, [h(CardDrawer, { view, card }), h(Toaster)])),
 })
   .use(router)
   .provide(apiKey, api)

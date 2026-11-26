@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 // The question before an action whose why the server keeps (pausing, archiving or unarchiving a chain, declining a help):
 // what it is (`title`), what happens (`description`), one line for why (empty is allowed), Cancel, and the action named by
 // `verb` and by `busy` while it runs. Enter in the line confirms.
-defineProps<{ title: string; description: string; verb: string; busy: string; running: boolean }>();
+defineProps<{ title: string; description: string; verb: string; busy: string; running: boolean; destructive?: boolean }>();
 const open = defineModel<boolean>('open', { required: true });
 const emit = defineEmits<{ confirm: [why: string] }>();
 const why = ref('');
@@ -25,7 +25,7 @@ const confirm = () => emit('confirm', why.value.trim());
       <Input v-model="why" autocomplete="off" aria-label="Why, in a sentence (optional)" placeholder="Why, in a sentence (optional)" data-why @keydown.enter.exact.prevent="!running && confirm()" />
       <DialogFooter>
         <Button variant="outline" @click="open = false">Cancel</Button>
-        <Button :disabled="running" data-confirm @click="confirm">{{ running ? busy : verb }}</Button>
+        <Button :variant="destructive ? 'destructive' : 'default'" :class="destructive && 'text-red-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-text'" :disabled="running" data-confirm @click="confirm">{{ running ? busy : verb }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

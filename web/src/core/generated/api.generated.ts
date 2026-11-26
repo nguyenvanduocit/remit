@@ -52,6 +52,7 @@ export interface CallArgs {
   card_restart: { cardId: string };
   card_stop: { cardId: string; why: string };
   card_stop_explain: { cardId: string; why: string };
+  card_process_kill: { cardId: string; killToken: string; why: string };
   card_task_stop: { eventId: number };
   block_pick: { eventId: number; part: string; picked: string[] };
   assistant_prompt: { draftId: string; where: Where; delivery: Delivery };
@@ -128,6 +129,7 @@ export interface CallAnswers {
   card_restart: Ack;
   card_stop: Card;
   card_stop_explain: Ack;
+  card_process_kill: Ack;
   card_task_stop: Ack;
   block_pick: EventRead;
   assistant_prompt: EventRead;
@@ -250,6 +252,8 @@ export function createApi(send: Send) {
     cardStop: (cardId: string, why: string): Promise<Card> => send('card_stop', { cardId, why }),
     /** Says why a stopped agent was stopped, after the stop: its Chair is told and its stream says it. */
     cardStopExplain: (cardId: string, why: string): Promise<Ack> => send('card_stop_explain', { cardId, why }),
+    /** Force kills one live OS process from the card’s process tree, bound to the instance shown. */
+    cardProcessKill: (cardId: string, killToken: string, why: string): Promise<Ack> => send('card_process_kill', { cardId, killToken, why }),
     /** Ends the background task of event `event_id` (a background shell, a Monitor); the agent goes on and is told. */
     cardTaskStop: (eventId: number): Promise<Ack> => send('card_task_stop', { eventId }),
     /**

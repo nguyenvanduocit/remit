@@ -174,8 +174,10 @@ dependencies = [
  "base64 0.22.1",
  "claudecode",
  "claudehooks",
+ "cosca",
  "jiff",
  "model",
+ "procgroup",
  "regex",
  "serde",
  "serde_json",
@@ -820,6 +822,15 @@ dependencies = [
  "sync_wrapper",
  "tower-layer",
  "tower-service",
+]
+
+[[package]]
+name = "backon"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cffb0e931875b666fc4fcb20fee52e9bbd1ef836fd9e9e04ec21555f9f85f7ef"
+dependencies = [
+ "fastrand",
 ]
 
 [[package]]
@@ -1682,6 +1693,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosca"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b34e7e2056ca0fa73f570bf1e3706929ac97faaf9a6e79e27cd60d59509f57a"
+dependencies = [
+ "backon",
+ "event-listener",
+ "exacl",
+ "getrandom 0.4.3",
+ "libc",
+ "log",
+ "mach2",
+ "nix",
+ "rustix 1.1.6",
+ "thiserror 2.0.21",
+ "windows",
+ "zeroize",
+]
+
+[[package]]
 name = "cosmic-text"
 version = "0.19.0"
 source = "git+https://github.com/pop-os/cosmic-text?rev=c5d32054ad0f284873e344e0ea87902d9dc2bca8#c5d32054ad0f284873e344e0ea87902d9dc2bca8"
@@ -2522,6 +2553,18 @@ checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
 dependencies = [
  "event-listener",
  "pin-project-lite",
+]
+
+[[package]]
+name = "exacl"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8de9e551ced9d700a31dacb8b168129640240fcd7a279a3fa4d59608b84ebcae"
+dependencies = [
+ "bitflags 2.13.2",
+ "log",
+ "scopeguard",
+ "uuid",
 ]
 
 [[package]]
@@ -4115,6 +4158,12 @@ name = "lru-slab"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
+
+[[package]]
+name = "mach2"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0d28e293f2b8c9d2b2d1c0193bd3c1cbdc0d2cf396888dc01162f7cf9d6c3f3"
 
 [[package]]
 name = "macro_magic"

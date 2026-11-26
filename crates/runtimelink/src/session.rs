@@ -588,6 +588,20 @@ impl<L: Link> agent::Session for Handle<L> {
         })
     }
 
+    fn kill_process(&self, kill_token: String) -> BoxFuture<'_, Result<(), agent::Error>> {
+        Box::pin(async move {
+            self.0
+                .l
+                .call(
+                    &self.0.rt,
+                    to_runtime::client::session_process_kill(self.0.id.clone(), kill_token),
+                )
+                .await
+                .map(|_| ())
+                .map_err(|e| e.agent("force kill process"))
+        })
+    }
+
     fn context(&self) -> BoxFuture<'_, Result<model::SessionContext, agent::Error>> {
         Box::pin(self.0.context())
     }

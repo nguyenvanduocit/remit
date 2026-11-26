@@ -3,7 +3,7 @@
 // fills it. `counted: 'none'` answers as for a session Claude Code has not counted yet, `'stored'` as for one whose
 // process did not answer now, so the count of when it last rested stands in; `loaded: false` as for one whose first turn
 // has not reported what it loaded.
-import type { CapabilityView, Card, CardContext, CardTelemetry, ContextCount, ContextGiven } from '../src/core/generated/types.generated';
+import type { CapabilityView, Card, CardContext, CardProcesses, CardTelemetry, ContextCount, ContextGiven } from '../src/core/generated/types.generated';
 
 const plugins = ['superpowers', 'acme-engineer', 'aio-advisor', 'aio-claude-toolkit', 'aio-design-system', 'figma', 'shopify-plugin', 'cowork-plugin-management', 'claude-code-vault-keeper'];
 const words = ['review', 'deploy', 'health', 'query', 'verify', 'release', 'debug', 'design', 'test', 'report', 'sync', 'audit', 'plan', 'seed', 'trace', 'search', 'write', 'route'];
@@ -146,16 +146,16 @@ export function contextOf(card: Card, opts: { counted?: 'now' | 'stored' | 'none
   };
 }
 
-export function processesOf({ stopped = false, shared = false, cpu = 118.4 } = {}): import('../src/core/generated/types.generated').CardProcesses {
+export function processesOf({ stopped = false, shared = false, cpu = 118.4, killed }: { stopped?: boolean; shared?: boolean; cpu?: number; killed?: ReadonlySet<string> } = {}): CardProcesses {
   return {
     shared,
     processes: stopped ? [] : [
-      { pid: 48120, depth: 0, command: 'remit-jail', state: 'Sleeping', cpuPercent: 0, residentBytes: 6_291_456, elapsedSeconds: 1_042 },
-      { pid: 48133, depth: 1, command: 'claude', state: 'Sleeping', cpuPercent: 3.2, residentBytes: 314_572_800, elapsedSeconds: 1_041 },
-      { pid: 48301, depth: 2, command: 'bash', state: 'Sleeping', cpuPercent: 0, residentBytes: 3_145_728, elapsedSeconds: 29 },
-      { pid: 48302, depth: 3, command: 'cargo', state: 'Sleeping', cpuPercent: 0.5, residentBytes: 23_068_672, elapsedSeconds: 29 },
-      { pid: 48309, depth: 4, command: 'rustc', state: 'Running', cpuPercent: cpu, residentBytes: 627_048_448, elapsedSeconds: 12 },
-      { pid: 48310, depth: 4, command: 'a-very-long-test-binary-name-to-check-the-command-column', state: 'Running', cpuPercent: null, residentBytes: 4_194_304, elapsedSeconds: 1 },
-    ],
+      { pid: 48120, depth: 0, command: 'remit-jail', state: 'Sleeping', cpuPercent: 0, residentBytes: 6_291_456, elapsedSeconds: 1_042, killToken: null },
+      { pid: 48133, depth: 1, command: 'claude', state: 'Sleeping', cpuPercent: 3.2, residentBytes: 314_572_800, elapsedSeconds: 1_041, killToken: null },
+      { pid: 48301, depth: 2, command: 'bash', state: 'Sleeping', cpuPercent: 0, residentBytes: 3_145_728, elapsedSeconds: 29, killToken: null },
+      { pid: 48302, depth: 3, command: 'cargo', state: 'Sleeping', cpuPercent: 0.5, residentBytes: 23_068_672, elapsedSeconds: 29, killToken: null },
+      { pid: 48309, depth: 4, command: 'rustc', state: 'Running', cpuPercent: cpu, residentBytes: 627_048_448, elapsedSeconds: 12, killToken: killed && !shared ? 'rustc-48309' : null },
+      { pid: 48310, depth: 4, command: 'a-very-long-test-binary-name-to-check-the-command-column', state: 'Running', cpuPercent: null, residentBytes: 4_194_304, elapsedSeconds: 1, killToken: killed && !shared ? 'test-48310' : null },
+    ].filter((process) => !process.killToken || !killed?.has(process.killToken)),
   };
 }

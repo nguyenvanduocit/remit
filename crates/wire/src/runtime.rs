@@ -590,6 +590,7 @@ pub mod to_runtime {
             /// Ends one task of the session's process (a subagent, a workflow run, a background shell or a Monitor); the
             /// turn that started it goes on, and the task's end follows as its `task` entry.
             session_stop_task(session_id: String, task_id: String) -> Ack, why = "a task stopped twice stops once";
+            session_process_kill(session_id: String, kill_token: String) -> Ack, why = "a target identifies one OS process instance; a reused PID cannot be signaled by replay";
             /// Its `exit` entry follows once the process group has exited.
             session_kill(session_id: String) -> Ack, why = "a session ended twice ends once";
             permission_answered(session_id: String, request_id: String, answer: PermissionAnswer) -> Ack, why = "the same requestId answered again changes nothing";
