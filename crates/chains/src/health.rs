@@ -374,7 +374,7 @@ impl OutageState {
 
 /// Receives a probe's one turn: it keeps what the agent says, and asks for nothing.
 #[derive(Default)]
-struct ProbeHandler {
+pub(crate) struct ProbeHandler {
     text: Mutex<String>,
 }
 

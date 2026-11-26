@@ -31,6 +31,7 @@ use crate::permission::{AskedPermission, unanswered};
 use crate::recovery::{LOST_CONTEXT_MARKER, recovery_of};
 use crate::request::Service;
 use crate::spawn::SpawnStep;
+use crate::start_stage::{StartFailure, StartStage, opened, within};
 use crate::turn_end::{TurnEnd, WorkerReport};
 use crate::{Error, Request, Result};
 
@@ -374,8 +375,6 @@ impl agent::Handler for RunHandler {
     }
 }
 
-/// How long a session may take to start.
-const START_WAIT: Duration = Duration::from_secs(3 * 60);
 /// How long a cancel request may take to reach an agent.
 pub const CANCEL_WAIT: Duration = Duration::from_secs(5);
 
@@ -567,22 +566,17 @@ impl Core {
             r: Arc::downgrade(r),
             reports: tx,
         });
-        let started = tokio::time::timeout(START_WAIT, async {
-            let (spec, acc) = self
-                .domains()
-                .map_err(|e| (e.to_string(), None))?
-                .spec(&c, &r.resume, &r.token)
-                .await
-                .map_err(|e| (e.to_string(), None))?;
+        let started = async {
+            let (spec, acc) = within(StartStage::Prepare, StartStage::Prepare.wait(), async {
+                let d = self.domains().map_err(|e| (e.to_string(), None))?;
+                d.spec(&c, &r.resume, &r.token).await.map_err(|e| (e.to_string(), None))
+            })
+            .await?;
             let sent = spec.clone();
-            let sess = self.open_session(spec, h).await.map_err(|e| {
-                let f = crate::failover::provider_fault(&e);
-                (e.to_string(), f)
-            })?;
-            Ok((sess, sent, acc))
-        })
-        .await
-        .unwrap_or_else(|_| Err(("it did not start within 3 minutes".to_owned(), None)));
+            let sess = opened(StartStage::Open.wait(), self.open_session(spec, h)).await?;
+            Ok::<_, StartFailure>((sess, sent, acc))
+        }
+        .await;
         match started {
             Ok((sess, sent, acc)) => {
                 let sess: Arc<dyn agent::Session> = Arc::from(sess);

@@ -83,6 +83,7 @@ pub mod shown_decision;
 pub mod signal_sources;
 pub mod spawn;
 pub mod spin;
+mod start_stage;
 pub mod steering;
 pub mod step;
 pub mod stream;

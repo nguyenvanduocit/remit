@@ -14,6 +14,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::time::Duration;
 
 use model::{Prompt, SessionContext, SessionInit, StopReason, SystemNote, TaskStatus, Time, ToolStatus, text_enum};
 use serde::{Deserialize, Serialize};
@@ -24,6 +25,10 @@ use crate::Ack;
 /// The contract's number. Additive changes keep it; any other change bumps it, and the core refuses a runtime that says
 /// another number.
 pub const RUNTIME_CONTRACT: i64 = 5;
+
+/// How long the runtime gives Claude to start a session before it answers the open with a `Service` failure. The core
+/// waits longer than this for that answer, so the runtime's verdict, not the core's clock, says why an open failed.
+pub const SESSION_OPEN_WAIT: Duration = Duration::from_secs(180);
 
 text_enum! {
     /// What part of the provider failed a turn.

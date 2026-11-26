@@ -63,3 +63,6 @@ regex = "1.12.2"
 url = "2.5.8"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider"] }
 jsonschema = { version = "0.51", default-features = false }
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["test-util"] }

@@ -3,6 +3,7 @@
 //! until the core has them.
 
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::Duration;
 
@@ -12,8 +13,8 @@ use tokio::sync::{Notify, OnceCell, oneshot};
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 use wire::runtime::{
-    EntryBody, HeldSession, Limit, Moment, PermissionAnswer, PermissionRequest, SessionEntry, SessionOpened, Steered,
-    Task, TaskOutput, to_core,
+    EntryBody, Failure, FailureCategory, HeldSession, Limit, Moment, PermissionAnswer, PermissionRequest,
+    SESSION_OPEN_WAIT, SessionEntry, SessionOpened, Steered, Task, TaskOutput, to_core,
 };
 
 use crate::convert::{self, cut};
@@ -23,11 +24,24 @@ use crate::{lock, new_id};
 /// The most one `session_events` call carries, encoded; one entry larger than it goes alone.
 const BATCH_LIMIT: usize = 256 << 10;
 
-/// How long the runtime gives Claude to start a session (the core gives up on an open after as long, and kills what it
-/// gave up on), to take a cancel, and to exit once closed as the runtime ends.
-const OPEN_WAIT: Duration = Duration::from_secs(180);
+/// How long the runtime gives Claude to take a cancel, and to exit once closed as the runtime ends.
 const CANCEL_WAIT: Duration = Duration::from_secs(5);
 const CLOSE_WAIT: Duration = Duration::from_secs(10);
+
+/// Claude's start, within wait. One that has not started by then is the provider's `Service` failure, as a health probe
+/// that gets no answer is (chains `probe_account`): the core's failover takes the account out and the card goes on.
+async fn started_within<T>(
+    wait: Duration,
+    start: impl Future<Output = Result<T, agent::Error>>,
+) -> Result<T, agent::Error> {
+    tokio::time::timeout(wait, start).await.unwrap_or_else(|_| {
+        Err(agent::Error::Failure(Failure {
+            category: FailureCategory::Service,
+            title: format!("Claude did not start within {wait:?}"),
+            resets_at: None,
+        }))
+    })
+}
 
 pub(crate) struct Session<L> {
     /// Itself, for the callbacks of its launcher session, which outlive the runtime's map of sessions.
@@ -106,17 +120,15 @@ impl<L: Link> Session<L> {
         lock(&self.state)
     }
 
-    /// Starts the session in the launcher, within `OPEN_WAIT`, and writes how it ended as the opened entry: the core
-    /// hands the session out once it has it. A failed open's opened entry is its last; a session closed while it opened
-    /// is closed now.
+    /// Starts the session in the launcher, within `SESSION_OPEN_WAIT`, and writes how it ended as the opened entry: the
+    /// core hands the session out once it has it. A failed open's opened entry is its last; a session closed while it
+    /// opened is closed now.
     pub(crate) async fn open(self: Arc<Self>, spec: agent::Spec) {
         let card = spec.card_id.clone();
         let handler: Arc<dyn agent::Handler> = self.clone();
-        let start = tokio::time::timeout(OPEN_WAIT, self.r.cfg.launcher.start(spec, handler));
+        let start = started_within(SESSION_OPEN_WAIT, self.r.cfg.launcher.start(spec, handler));
         let started = tokio::select! {
-            started = start => started.unwrap_or_else(|_| {
-                Err(agent::Error::TurnFailed(format!("Claude did not start within {OPEN_WAIT:?}")))
-            }),
+            started = start => started,
             () = self.opening.cancelled() => Err(agent::Error::TurnFailed("the session was closed as it opened".to_owned())),
         };
         let result = convert::opened(&started);
@@ -568,5 +580,23 @@ impl<L: Link> agent::Handler for Session<L> {
             s.exited.cancel();
             s.kick.notify_one();
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn a_claude_that_does_not_start_in_time_is_a_service_failure() {
+        let wait = Duration::from_millis(20);
+        let got = started_within::<()>(wait, std::future::pending()).await;
+        match got {
+            Err(agent::Error::Failure(f)) => {
+                assert_eq!(f.category, FailureCategory::Service);
+                assert_eq!(f.title, "Claude did not start within 20ms");
+            }
+            other => panic!("want a Service failure, got {other:?}"),
+        }
     }
 }
