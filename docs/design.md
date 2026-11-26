@@ -100,8 +100,8 @@ and the README of each crate below it.
   standing.
 - What waits on the owner shows with the agent it waits on: its answers (the answers the server offers; on a permission, text
   typed in the callout turns Refuse into "Refuse with this reason", which the session reads, ADR-0080) are
-  pinned under the drawer's panel, above the box to message it, whichever panel is open and however far the stream is scrolled,
-  and answered there once; the Activity keeps a one-line record of where the agent stopped to wait. A call that never got its
+  shown in the drawer. Questions fold to their titles and scroll with the open panel. Other requests stay pinned above the
+  message box; the Activity keeps a one-line record of where the agent stopped to wait. A call that never got its
   answer is retried with its request id, and a press while one is on its way does nothing. The agent is marked "Needs you", its line
   naming the wait ("Approve: Bash psql …", ADR-0078), wherever it appears (its drawer's header, whose mark takes the keyboard to those answers, its line in the agent tree, its runs in the Live
   feed, its mark under the chain's card in the board's column beside the chain), and a click there opens its drawer. An item that names no agent

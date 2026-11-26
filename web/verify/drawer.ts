@@ -22,7 +22,7 @@ import { agentStands, stands } from './standingSeed';
 import type { Card, DecisionRead, EventKind, EventRead, Help, Mentor } from '../src/core/generated/types.generated';
 import '../src/theme.css';
 import { turnEnd } from './activitySeed';
-import { actorOf, cardRecord, chainRead, chainRecord, decisionRead, decisionRecord, draftRecord, helpRecord, seedEvent, type EventSeed } from './records';
+import { actorOf, cardRecord, chainRead, chainRecord, inboxRecord, optionOf, decisionRead, decisionRecord, draftRecord, helpRecord, seedEvent, type EventSeed } from './records';
 
 const params = new URLSearchParams(location.search);
 const which = params.get('case') ?? 'busy';
@@ -118,18 +118,25 @@ const decisions: DecisionRead[] = handover
       ]
     : [];
 
+const questions = which === 'question' ? [inboxRecord({
+  id: 'q1', home: chain.id, cardId: open.id, kind: 'question', title: 'When should the service restart?',
+  detail: Array.from({ length: 12 }, (_, i) => `Check ${i + 1}: the installed version is ready. The service will load it at its next restart.`).join('\n\n'),
+  options: [optionOf('now', 'Restart now'), optionOf('later', 'At the next restart')], status: 'open', createdAt: iso(Date.now()),
+})] : [];
+if (questions.length) events.push(ev('message', 19, { text: Array.from({ length: 18 }, (_, i) => `Checked service ${i + 1} and recorded its running revision.`).join('\n\n') }));
+
 const calls: string[] = [];
 (window as unknown as { calls: string[] }).calls = calls;
 const seed = params.get('typed') ? [draftRecord({ id: 'd1', home: 'c1', cardId: open.id, text: 'Run it with a burst of 50 requests too, and say how long the backoff waits.', updatedAt: iso(Date.now()) })] : [];
 localStorage.removeItem('verify.drawer.drafts');
 const drafts = fakeDrafts('drawer', (name, arg) => fake.push(name as never, arg as never), seed);
 const fake = fakeServer({
-  appSnapshot: () => snapshotOf({ chains: [chainRead(chain)], mentors: [lan] }),
+  appSnapshot: () => snapshotOf({ chains: [chainRead(chain)], mentors: [lan], inbox: questions }),
   draftSave: drafts.draftSave,
   draftDelete: drafts.draftDelete,
   chainGet: () => ({ chain: chainRead(chain), cards: [open], edges: [], retrospectives: [], decisions, datadog: [], landings: [], drafts: drafts.live('c1'), workflows: [], helps: mentorCase ? [help] : [], verification: { chainId: 'c1', gates: [], judges: [], rev: 0 }, standing: stands('c1', 'Running', 'running'),
     agents: [
-      watching
+      questions.length ? agentStands(chain.id, open.id, 'Needs you', 'needs', questions[0]!.title, 'needs', questions.map((q) => q.id)) : watching
         ? agentStands('c1', open.id, 'Watching', 'running', 'Watching: tail the 429 log until the burst ends (+1)', 'busy', [], { asks: ['message', 'stop'] })
         : agentStands('c1', open.id, busy ? 'Running' : 'Idle', busy ? 'running' : 'idle', busy ? 'Running a command…' : 'Turn done', busy ? 'busy' : 'done', [],
             { asks: busy ? ['message', 'steer', 'interrupt', 'stop'] : ['message', 'stop'] }),

@@ -33,7 +33,7 @@ const tab = defineModel<string>('tab', { required: true });
       </div>
     </template>
     <template #standing>
-      <Tip v-if="agent.waiting.length" text="What it waits for is pinned under the stream">
+      <Tip v-if="agent.waiting.length" text="Go to the pending request">
         <button type="button" class="flex-none" :aria-label="`${agent.label}: answer it`" @click="$emit('needs')">
           <AgentStandingBadge :agent="agent" />
         </button>

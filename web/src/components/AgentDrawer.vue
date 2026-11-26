@@ -23,7 +23,7 @@ import { pendingIn } from '../drafts';
 
 // An agent as the owner opens it: who it is, the panel the address names (`panelKey`, its activity unless named) and the
 // box to message it (`deliver` sends, CardComposer's unless given; `composer` false when another box already takes his words,
-// as the Assistant's column does while it is open beside this drawer). What waits on the owner from it is answered once, pinned
+// as the Assistant's column does while it is open beside this drawer). Questions fold into the panel. Other requests stay pinned
 // under the panel whichever panel is open, so Allow and Reject never depend on how far the stream is scrolled; the stream keeps
 // a record of where it was asked. The header's "Needs you" takes the keyboard to those answers. The context meter opens the
 // Session panel at what fills the context. Whose agent it is (a chain's, the Assistant) is the caller's: it hands over the
@@ -77,8 +77,20 @@ watch(tab, (t) => {
   if (t === 'activity') void follow();
   else if (body.value) body.value.scrollTop = 0;
 });
+const questions = computed(() => props.waiting.filter((item) => item.kind === 'question'));
+const otherRequests = computed(() => props.waiting.filter((item) => item.kind !== 'question'));
+const questionList = ref<HTMLElement | null>(null);
 const pinned = ref<HTMLElement | null>(null);
-const goToWaiting = () => pinned.value?.querySelector<HTMLElement>('button, input')?.focus();
+function goToWaiting() {
+  const action = pinned.value?.querySelector<HTMLElement>('button, input');
+  if (action) return action.focus();
+  const question = questionList.value?.querySelector('details');
+  if (question) {
+    question.open = true;
+    question.querySelector('summary')?.focus();
+    question.scrollIntoView({ block: 'start', inline: 'nearest' });
+  }
+}
 watch(() => props.card.id, () => void follow(), { immediate: true });
 </script>
 
@@ -104,11 +116,19 @@ watch(() => props.card.id, () => void follow(), { immediate: true });
           <AgentMemory v-if="agent.remembers" :card-id="card.id" :name="name" :view-key="`${panelKey}Memory`" :employee="card.employee" />
           <EmptyState v-else>{{ name }} keeps no memory: it is no employee's.</EmptyState>
         </template>
+        <div v-if="questions.length" ref="questionList" class="mt-3 grid gap-2">
+          <details v-for="item in questions" :key="item.id" class="min-w-0 rounded-md bg-panel">
+            <summary class="cursor-pointer rounded-md px-3 py-2 text-sm font-semibold text-text">
+              <span class="inline-block max-w-[90%] truncate align-middle">{{ item.title }}</span>
+            </summary>
+            <InboxCallout :item="item" />
+          </details>
+        </div>
       </div>
       <JumpToLatest v-if="tab === 'activity' && !stuck" class="absolute right-4 bottom-3" :unseen="unseen" @click="follow" />
     </div>
-    <div v-if="waiting.length" ref="pinned" class="flex max-h-[45%] flex-none flex-col gap-2 overflow-auto border-t border-line px-3 py-2.5" data-pinned-asks>
-      <InboxCallout v-for="item in waiting" :key="item.id" :item="item" />
+    <div v-if="otherRequests.length" ref="pinned" class="flex max-h-[45%] flex-none flex-col gap-2 overflow-auto border-t border-line px-3 py-2.5" data-pinned-asks>
+      <InboxCallout v-for="item in otherRequests" :key="item.id" :item="item" />
     </div>
     <CardComposer v-if="composer" :card="card" :name="name" :chair="chair" :agent="agent" :deliver="deliver" @sent="follow" />
   </aside>
