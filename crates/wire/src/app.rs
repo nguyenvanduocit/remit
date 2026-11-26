@@ -1310,6 +1310,8 @@ pub enum Ask {
     Stop,
     /// A new session, its own having gone.
     Restart,
+    /// Model or thinking effort is selectable before the Assistant takes its next turn.
+    ChangeRuntime,
 }
 
 /// How a message the owner sends meets a turn in progress (ADR-0080): `queue` is read after it (or now when none runs),
@@ -1892,6 +1894,13 @@ pub struct AssistantView {
     pub drafts: Vec<Draft>,
 }
 
+/// Model and thinking effort options for the Assistant's composer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssistantRuntimeOptions {
+    pub models: Vec<String>,
+    pub efforts: Vec<String>,
+}
+
 /// A `work` chain the owner asks for: what he wants, in his words; `project` the id of the project his board is narrowed
 /// to.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -2269,6 +2278,7 @@ pub struct GoogleSignedIn {
 link::contract! {
     capability: "app";
     reads {
+        assistant_runtime_options() -> AssistantRuntimeOptions, why = "reads the models and thinking efforts the owner can send the Assistant on";
         app_snapshot() -> Snapshot, why = "reads the snapshot a channel starts from";
         /// A provider's probe may take two minutes (`orch` `PROBE_TIMEOUT`): the answer waits longer than that.
         health_check() -> Health, why = "probes the providers and reads their health: a replay probes again and changes no record", timeout_ms = 150000;
@@ -2365,6 +2375,8 @@ link::contract! {
         /// Sends the owner's message draft to the Assistant as `delivery` says, with where he is; ends the draft with the
         /// send.
         assistant_prompt(draft_id: String, r#where: Where, delivery: Delivery) -> EventRead;
+        /// Sets either runtime choice for the Assistant's next turn, leaving omitted choices as they are.
+        assistant_set_runtime(model: Option<String>, effort: Option<String>) -> Ack;
         /// Keeps the owner's words as he types, made on the draft at `base_rev` (0: one the page starts); answers the
         /// draft as stored. A save made on a copy another page has saved over since, or a page's first save in a box that
         /// holds a draft already, saves nothing: `CONFLICT`, with `FailureDetail::draft_conflict` holding the draft as it is.

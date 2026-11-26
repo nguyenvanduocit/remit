@@ -103,6 +103,7 @@ let stopWatching: (() => void) | undefined;
 // printed, so a check can read which the core names), and
 // the core's minute of link telemetry kept (printed, so a check can read what the core counted).
 const DEFAULTS: Partial<Answers> = {
+  assistantRuntimeOptions: async () => ({ models: ['opus', 'sonnet', 'haiku'], efforts: ['low', 'medium', 'high', 'xhigh', 'max'] }),
   atWork: () => ({ seats: [], rev: 1 }),
   homesShown: (homes) => {
     console.info(`homesShown ${JSON.stringify(homes)}`);

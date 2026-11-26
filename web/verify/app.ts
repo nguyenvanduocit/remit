@@ -398,6 +398,12 @@ const fake = fakeServer({
     return { events: page.slice(-n), truncated: since >= 0 || page.length > n };
   },
   // The owner's message to the Assistant, with where he is: kept as the server keeps it, the place named in its words.
+  assistantSetRuntime: async (model, effort) => {
+    calls.push({ assistantSetRuntime: { model, effort } });
+    asCard = { ...asCard, model: model ?? asCard.model, effort: effort ?? asCard.effort, rev: asCard.rev + 1 };
+    fake.push('cardUpdated', asCard);
+    return {};
+  },
   assistantPrompt: async (draftId, where, delivery) => {
     calls.push({ assistantPrompt: { draftId, where, delivery } });
     const d = drafts.get(draftId);

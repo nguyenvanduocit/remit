@@ -130,6 +130,8 @@ watch(() => props.card.id, () => void follow(), { immediate: true });
     <div v-if="otherRequests.length" ref="pinned" class="flex max-h-[45%] flex-none flex-col gap-2 overflow-auto border-t border-line px-3 py-2.5" data-pinned-asks>
       <InboxCallout v-for="item in otherRequests" :key="item.id" :item="item" />
     </div>
-    <CardComposer v-if="composer" :card="card" :name="name" :chair="chair" :agent="agent" :deliver="deliver" @sent="follow" />
+    <CardComposer v-if="composer" :card="card" :name="name" :chair="chair" :agent="agent" :deliver="deliver" @sent="follow">
+      <template v-if="$slots.composerOptions" #options><slot name="composerOptions" /></template>
+    </CardComposer>
   </aside>
 </template>

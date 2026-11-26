@@ -1575,7 +1575,9 @@ screen, open across navigation (`?assistant=1`); it is one conversation, the sam
 
 - **What it is.** A record and its one card (origin `assistant`), in no chain, made at the first start
   (`EnsureAssistant`), in a directory Remit owns (`<data>/assistant`), on `-assistant-model` at `-assistant-effort`
-  (default `opus`, `medium`), which its card follows at every start (ADR-0070). Its card's stream is
+  (default `opus`, `medium`). The owner can change either choice between turns in the composer, and the card keeps it across
+  server restarts. When the model cap excludes the saved model, the card falls back to the configured initial model.
+  The next session reads a recap after a switch (ADR-0136). Its card's stream is
   the conversation. Nothing of a chain holds it: no pause, no cap, no slot, no stall rail. It runs a turn only on a
   message: the owner's, an item put to it, or an agent's reply to a message it sent. The repetition rail holds its turns
   as any agent's (ADR-0092); across turns, an exchange with agents the owner is not in is its loop: every `-spin-turns`
@@ -1677,7 +1679,7 @@ account `default`. A machine with none still runs: `default` is then a signed-ou
 one catalog of the models agents run on: `fable`, `opus`, `sonnet` and `haiku`, cut at `-top-model` (default `opus`) so no card runs above it (ADR-0133), each with its tier (`apex`, `frontier`,
 `workhorse`, `fast`), and of the efforts a session thinks at (`low`, `medium`, `high`, `xhigh`, `max`; empty is Claude Code's
 default), which reach Claude Code as `--model` and `--effort`. A card stores its model id, its effort and the account it runs
-on. The Chair names a hire's model or effort only when it knows better (`models_help`). A model it leaves empty, and its agent leaves empty, is chosen by the decision layer from the brief (`hire.tier_can` for each tier below the strongest, the cheapest tier that acts wins; ADR-0118) when a decider is sure, else it is the Chair's own; the effort is the agent's, else the Chair's (`hire.effort` only informs). A card whose model was so chosen climbs a tier by code when its turn breaks or its gate sends its change back twice (`chains/src/climb.rs`); a hand-over, a workflow's hire and a duel's sides ask no decider. The Chair and the Assistant run on `opus` at `medium` (`-chair-model`, `-chair-effort`,
+on. The Chair names a hire's model or effort only when it knows better (`models_help`). A model it leaves empty, and its agent leaves empty, is chosen by the decision layer from the brief (`hire.tier_can` for each tier below the strongest, the cheapest tier that acts wins; ADR-0118) when a decider is sure, else it is the Chair's own; the effort is the agent's, else the Chair's (`hire.effort` only informs). A card whose model was so chosen climbs a tier by code when its turn breaks or its gate sends its change back twice (`chains/src/climb.rs`); a hand-over, a workflow's hire and a duel's sides ask no decider. The Chair and the Assistant initially run on `opus` at `medium` (`-chair-model`, `-chair-effort`,
 `-assistant-model`, `-assistant-effort`), and every judge (the goal, duel and second judges, and a card that signs a
 gate) on the capped catalog's strongest model at the Chair's effort, so none grades an author stronger than itself (ADR-0102, ADR-0133). A flag that names a model or effort the catalog
 does not know refuses to start the server. See ADR-0006, ADR-0007 and ADR-0070.

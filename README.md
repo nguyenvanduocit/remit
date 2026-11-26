@@ -103,8 +103,8 @@ Every flag has a default; `./bin/remit -h` prints them all. The table below is w
 | `-top-model` | `opus` | the most capable model Remit runs: no model above its tier is offered, and every judge runs on it |
 | `-chair-model` | `opus` | model for the Chair; the Chair chooses the model of every agent it hires |
 | `-chair-effort` | `medium` | effort for the Chair (low, medium, high, xhigh, max; empty: Claude Code's default); the Chair chooses the effort of every agent it hires |
-| `-assistant-model` | `opus` | model the Assistant, the owner's agent for the whole app, runs on |
-| `-assistant-effort` | `medium` | effort the Assistant runs at (low, medium, high, xhigh, max; empty: Claude Code's default) |
+| `-assistant-model` | `opus` | initial model for the Assistant |
+| `-assistant-effort` | `medium` | initial effort for the Assistant (low, medium, high, xhigh, max; empty: Claude Code's default) |
 | `-mode` | `auto` | Claude Code permission mode for every agent |
 | `-autonomous` | `true` | chains decide without the owner: the Chair asks him only to clear a block from outside the chain; Remit lands each approved change itself |
 | `-glab` | `glab` | glab binary, logged in on this machine, that Remit reads GitLab hosts through (where a branch stands, the checks on a commit) |
@@ -190,8 +190,8 @@ binary, started by the server as its child, which dials it back over `/runtime` 
 accounts' logins and the transcripts (`docs/adr/0058-claude-sessions-run-in-an-ai-runtime-outside-the-core.md`). Agents run in a config dir of their own, `<data>/claude`, that holds
 a link to that login and nothing else, so the plugins and skills installed for the machine's user never reach them. A card's model is `fable`, `opus`, `sonnet` or `haiku`
 (apex, frontier, workhorse and fast tiers), run at an effort of `low`, `medium`, `high`, `xhigh` or `max` (empty: Claude
-Code's default). The Chair picks the pair per hire (an agent's default, else its own), and `-chair-model`/`-chair-effort` and
-`-assistant-model`/`-assistant-effort` set the Chair's and the Assistant's (default `opus` at `medium`); `-top-model` (default `opus`) is the most capable model
+Code's default). The Chair picks the pair per hire (an agent's default, else its own), and `-chair-model`/`-chair-effort` set the Chair's choices (default `opus` at `medium`).
+`-assistant-model`/`-assistant-effort` set the Assistant's initial choices. The owner can change them in the Assistant's composer between turns. `-top-model` (default `opus`) is the most capable model
 any card runs on, and every judge runs on it
 (`docs/adr/0133-the-owner-caps-the-model-and-agents-think-at-medium.md`). When the provider fails (the account is signed out, a rate or usage limit is hit, the service is down), the card
 waits for it, its message kept, and goes on by itself once the provider answers; the Health bar says why, and the card's

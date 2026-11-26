@@ -8,6 +8,7 @@ import type { AssistantView, Delivery } from '../core/generated/types.generated'
 import type { Call } from '../core/client';
 import AgentDrawer from './AgentDrawer.vue';
 import AssistantFeed from './AssistantFeed.vue';
+import AssistantRuntime from './AssistantRuntime.vue';
 import Icon from './Icon.vue';
 import Tip from './Tip.vue';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,7 @@ onBeforeUnmount(() => {
   <div ref="root" class="flex min-h-0 min-w-0 flex-1" data-assistant @keydown.esc="close()">
     <AgentDrawer :card="view.card" name="Assistant" :chair="false" :agent="view.agent" :events="assistant.events" :status="assistant.status" :waiting="assistantWaiting" :judged="[]" :decisions="[]" :decisions-new="assistant.feed?.unseen" panel-key="assistantPanel" :deliver="deliver">
       <template #title><span class="sr-only">Assistant</span></template>
+      <template #composerOptions><AssistantRuntime :card="view.card" :agent="view.agent" /></template>
       <template #decisions><AssistantFeed /></template>
       <template #actions>
         <Tip v-if="view.agent.asks.includes('restart')" text="Clear this conversation and close its session: your next message opens a new one, which reads a recap of it">

@@ -134,3 +134,4 @@ status: the same state and the same records that changed it.
 | [0133](0133-the-owner-caps-the-model-and-agents-think-at-medium.md) | accepted | `-top-model` (default `opus`) caps the catalog, so no card runs above it and every judge runs on it; the Chair and the Assistant default to `opus` at `medium`; judges Remit starts run at the Chair's effort; review depths are `medium`, `high`, `xhigh`; amends 0070, 0102 and 0118 |
 | [0134](0134-sessions-show-live-os-processes.md) | accepted | The owner can inspect live OS processes for a card from its Session tab |
 | [0135](0135-force-kill-targets-one-process-instance.md) | accepted | The owner can request SIGKILL for a verified session process instance, with durable intent in Activity |
+| [0136](0136-the-owner-selects-the-assistants-runtime-between-turns.md) | accepted | The Assistant's composer selects the saved model and thinking effort between turns. The next session reads the conversation recap |

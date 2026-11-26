@@ -15,14 +15,14 @@ const iso = (ms: number) => new Date(ms).toISOString();
 
 export function assistantCard(now: number, extra: Partial<Card> = {}): Card {
   return cardRecord({
-    id: ASSISTANT_CARD, home: ASSISTANT, agent: 'assistant', name: 'Assistant', origin: 'assistant', model: 'opus', mode: 'auto', cwd: '~/.remit/assistant', status: 'running',
+    id: ASSISTANT_CARD, home: ASSISTANT, agent: 'assistant', name: 'Assistant', origin: 'assistant', model: 'opus', effort: 'medium', mode: 'auto', cwd: '~/.remit/assistant', status: 'running',
     sessionId: 's-as-2', plan: [], ctxUsed: 96_000, ctxSize: 200_000, turns: 121, queued: 1, activity: 'Writing…', createdAt: iso(now - 3 * 24 * 60 * MIN), updatedAt: iso(now), rev: 1, ...extra,
   });
 }
 
 // Where it stands, as the server says it: working, ready, or failed with an item that waits on the owner.
 export function assistantStanding(state: 'working' | 'ready' | 'failed', waiting: string[] = []): AgentStanding {
-  const asks: AgentStanding['asks'] = state === 'working' ? ['message', 'interrupt', 'restart'] : ['message', 'restart'];
+  const asks: AgentStanding['asks'] = state === 'working' ? ['message', 'interrupt', 'restart'] : ['message', 'restart', 'change_runtime'];
   if (state === 'failed') return agentStands(ASSISTANT, ASSISTANT_CARD, 'Needs you', 'failed', 'Error: the provider refused the request', 'error', waiting, { asks, remembers: true });
   if (state === 'ready') return agentStands(ASSISTANT, ASSISTANT_CARD, 'Ready', 'idle', 'Ready', 'idle', [], { asks, remembers: true });
   return { ...agentStands(ASSISTANT, ASSISTANT_CARD, 'Working', 'running', 'Answering…', 'busy', [], { asks, remembers: true }), onMessage: undefined };

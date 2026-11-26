@@ -141,6 +141,7 @@ async function stop(why: string) {
         <Tip text="Attach files (or paste or drop them in the box)">
           <Button variant="ghost" size="icon-sm" class="text-mut" aria-label="Attach files" data-attach @click="picker?.click()"><Icon name="paperclip" :size="14" /></Button>
         </Tip>
+        <slot name="options" />
         <Tip v-if="agent.stopSays" :text="down ?? agent.stopSays">
           <Button variant="ghost" size="sm" class="text-mut hover:bg-red-tint hover:text-red-text aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:hover:bg-red-tint" :aria-disabled="!!down" :data-down="!!down || undefined" @click="down || (confirmStop = true)"><Icon name="stop" :size="12" />Stop agent…</Button>
         </Tip>

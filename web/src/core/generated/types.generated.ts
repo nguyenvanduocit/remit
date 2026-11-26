@@ -1068,8 +1068,9 @@ export type Run = {
  * - `interrupt`: The turn in progress ended.
  * - `stop`: Its session ended for good.
  * - `restart`: A new session, its own having gone.
+ * - `change_runtime`: Model or thinking effort is selectable before the Assistant takes its next turn.
  */
-export type Ask = 'message' | 'steer' | 'resume' | 'interrupt' | 'stop' | 'restart';
+export type Ask = 'message' | 'steer' | 'resume' | 'interrupt' | 'stop' | 'restart' | 'change_runtime';
 
 /**
  * How a message the owner sends meets a turn in progress (ADR-0080): `queue` is read after it (or now when none runs),
@@ -1557,6 +1558,12 @@ export type AssistantView = {
   card: Card;
   agent: AgentStanding;
   drafts: Draft[];
+};
+
+/** Model and thinking effort options for the Assistant's composer. */
+export type AssistantRuntimeOptions = {
+  models: string[];
+  efforts: string[];
 };
 
 /**

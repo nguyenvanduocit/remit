@@ -260,7 +260,10 @@ async fn the_security_gate_a_decider_added_scores_the_rails_question_by_what_it_
 async fn a_depth_that_would_not_raise_the_judges_changes_nothing_and_says_nothing() {
     let t = chain_of(sure(0, 0.02)).await;
     let judging = t.land().await;
-    assert_eq!(judging.version.effort, None, "the least depth is not above the usual effort");
+    assert_eq!(
+        judging.version.effort, None,
+        "the least depth is not above the usual effort"
+    );
     assert_eq!(judging.version.judged.len(), 2, "but it is still scored");
     let said = decisions_of(&t).await;
     assert!(said.iter().all(|s| !s.starts_with("Review and QC run")), "{said:?}");

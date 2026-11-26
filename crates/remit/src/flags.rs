@@ -138,17 +138,12 @@ pub fn defs(home: &Path, claude_config_dir: &str) -> Vec<Flag> {
             s("medium"),
             "effort for the Chair (low, medium, high, xhigh, max; empty: Claude Code's default); the Chair chooses the effort of every agent it hires",
         ),
-        f(
-            "assistant-model",
-            Str,
-            s("opus"),
-            "model the Assistant, the owner's agent for the whole app, runs on",
-        ),
+        f("assistant-model", Str, s("opus"), "initial model for the Assistant"),
         f(
             "assistant-effort",
             Str,
             s("medium"),
-            "effort the Assistant runs at (low, medium, high, xhigh, max; empty: Claude Code's default)",
+            "initial effort for the Assistant (low, medium, high, xhigh, max; empty: Claude Code's default)",
         ),
         f("mode", Str, s("auto"), "Claude Code permission mode for every agent"),
         f(

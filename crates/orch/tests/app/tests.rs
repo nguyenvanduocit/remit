@@ -485,6 +485,42 @@ impl Rig {
     }
 }
 
+#[tokio::test]
+async fn the_assistant_starts_on_the_owners_saved_model_and_effort() {
+    let agents = Arc::new(Agents::default());
+    let r = rig_of_agents(&agents);
+    let core = &r.o.core;
+    let model = "sonnet".to_owned();
+    core.ensure_assistant().await.unwrap();
+    core.set_assistant_runtime(owner("model"), Some(model.clone()), None)
+        .await
+        .unwrap();
+    core.set_assistant_runtime(owner("effort"), None, Some("high".to_owned()))
+        .await
+        .unwrap();
+    core.ensure_assistant().await.unwrap();
+    let card = core.assistant_card().await.unwrap();
+    assert_eq!(card.model, model);
+    assert_eq!(card.effort, "high");
+
+    let by = owner("prompt").by;
+    let message = orch::chains::outbox::owner_message(&card.id, "Your message", "Hello", by);
+    core.send_to_standalone(&card, message, Default::default())
+        .await
+        .unwrap();
+    agents.until(&format!("prompt {}", card.id)).await;
+    assert_eq!(
+        agents.3.lock().unwrap().get(&card.id),
+        Some(&(model, "high".to_owned()))
+    );
+    assert!(
+        core.set_assistant_runtime(owner("busy"), None, Some("low".to_owned()))
+            .await
+            .is_err()
+    );
+    assert_eq!(core.assistant_card().await.unwrap().effort, "high");
+}
+
 // The owner's chain is queued with its own task objective, starts on the Tick its creation runs, and its Chair is
 // handed the opening.
 #[tokio::test]

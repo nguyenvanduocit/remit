@@ -367,10 +367,16 @@ fn context_full(c: &Card) -> bool {
     c.ctx_size > 0 && c.ctx_used.saturating_mul(100) >= c.ctx_size.saturating_mul(85)
 }
 
+/// Whether the owner can switch the Assistant's provider settings before its next turn.
+pub fn can_change_runtime(card: &Card) -> bool {
+    !matches!(
+        card.status(),
+        CardStatus::Starting | CardStatus::Running | CardStatus::Permission
+    )
+}
+
 impl Core {
-    /// Makes the Assistant and its card at the first start that has none, and holds it. Its card starts with no session
-    /// and nothing queued: the owner's first message opens one. The flags own its model and effort: a card made on others
-    /// is brought to them at every start, in one change; its next session runs on them.
+    /// Makes the Assistant and its card at the first start that has none, and holds it.
     pub async fn ensure_assistant(&self) -> Result<()> {
         let a = match self.store.read(|r| r.assistant()).await {
             Ok(a) => a,
@@ -379,13 +385,14 @@ impl Core {
         };
         let id = a.card_id.clone();
         let mut card = self.store.read(move |r| r.card(&id)).await?;
-        let model = self.resolve_model(&self.cfg.assistant_model)?;
-        let effort = crate::failover::resolve_effort(&self.cfg.assistant_effort)?;
-        if card.model != model || card.effort != effort {
+        if self.resolve_model(&card.model).is_err() {
+            let model = self.resolve_model(&self.cfg.assistant_model)?;
             card = self
                 .update_card(&card.id, move |c| {
                     c.model.clone_from(&model);
-                    c.effort.clone_from(&effort);
+                    c.session_id.clear();
+                    c.ctx_used = 0;
+                    c.ctx_size = 0;
                 })
                 .await?;
         }
@@ -438,6 +445,82 @@ impl Core {
             .assistant
             .clone()
             .ok_or_else(|| Error::refused("the Assistant is not made yet"))
+    }
+
+    /// The choices supported by the configured provider.
+    pub fn assistant_runtime_options(&self) -> wire::app::AssistantRuntimeOptions {
+        wire::app::AssistantRuntimeOptions {
+            models: self
+                .cfg
+                .models
+                .iter()
+                .flat_map(|catalog| catalog.models())
+                .map(|model| model.id.clone())
+                .collect(),
+            efforts: provider::Effort::ALL.map(|effort| effort.as_str().to_owned()).to_vec(),
+        }
+    }
+
+    /// Changes the runtime between turns. A new session reads the conversation recap.
+    pub async fn set_assistant_runtime(
+        self: &Arc<Self>,
+        req: Request,
+        model: Option<String>,
+        effort: Option<String>,
+    ) -> Result<crate::request::Done> {
+        let by = req.by.clone();
+        self.act_done(req, "SetAssistantRuntime", move |o| async move {
+            let model = model.as_deref().map(|want| o.resolve_model(want)).transpose()?;
+            let effort = effort.as_deref().map(crate::failover::resolve_effort).transpose()?;
+            let id = o.the_assistant()?.card_id;
+            {
+                let _session = o.sessions.lock(&id).await;
+                let run = o.run_of(&id);
+                let _take = match &run {
+                    Some(run) => Some(run.take_mu.lock().await),
+                    None => None,
+                };
+                let card = o.assistant_card().await?;
+                let model = model.unwrap_or_else(|| card.model.clone());
+                let effort = effort.unwrap_or_else(|| card.effort.clone());
+                if card.model == model && card.effort == effort {
+                    return Ok(());
+                }
+                if !can_change_runtime(&card) {
+                    return Err(Error::refused(
+                        "Change the model or thinking effort after the Assistant's turn ends",
+                    ));
+                }
+                let now = o.now();
+                let label = crate::failover::model_label(&model, &effort);
+                o.change_assistant(Records {
+                    cards: vec![CardEdit::new(&id, move |c| {
+                        c.model.clone_from(&model);
+                        c.effort.clone_from(&effort);
+                        c.session_id.clear();
+                        c.ctx_used = 0;
+                        c.ctx_size = 0;
+                    })],
+                    events: vec![Event {
+                        home: card.home,
+                        card_id: id.clone(),
+                        status: EventStatus::System(SystemNote::Plain),
+                        by: Some(by),
+                        title: "Assistant runtime updated".to_owned(),
+                        text: format!("Assistant model set to {label}. {NEW_SESSION_NOTE}"),
+                        created_at: now,
+                        updated_at: now,
+                        ..Event::default()
+                    }],
+                    ..Records::default()
+                })
+                .await?;
+                o.close_run(&id, &model::Cut::RuntimeChanged);
+            }
+            o.dispatch(&id).await;
+            Ok(())
+        })
+        .await
     }
 
     /// Whether home is the Assistant's rather than a chain's.

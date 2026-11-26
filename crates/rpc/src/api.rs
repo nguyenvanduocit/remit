@@ -369,6 +369,25 @@ impl Handler for Api {
             .map_err(|e| failed("block_pick", &e))
     }
 
+    async fn assistant_runtime_options(&self) -> Result<wire::app::AssistantRuntimeOptions, Failure> {
+        Ok(self.o.core.assistant_runtime_options())
+    }
+
+    async fn assistant_set_runtime(
+        &self,
+        request: Request,
+        model: Option<String>,
+        effort: Option<String>,
+    ) -> Result<Ack, Failure> {
+        done(
+            "assistant_set_runtime",
+            self.o
+                .core
+                .set_assistant_runtime(self.request(request), model, effort)
+                .await,
+        )
+    }
+
     async fn assistant_prompt(
         &self,
         request: Request,

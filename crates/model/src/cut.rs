@@ -53,6 +53,8 @@ pub enum Cut {
     SecondOpinionGiven,
     /// The owner started the Assistant over.
     StartedOver,
+    /// The owner selected a new model or thinking effort for the Assistant.
+    RuntimeChanged,
     /// The session's context is full.
     ContextFull,
     /// The subagent's task ended, as status says.
@@ -87,6 +89,7 @@ impl std::fmt::Display for Cut {
             Self::RoundJudged => f.write_str("The round's attempt was picked"),
             Self::SecondOpinionGiven => f.write_str("The second opinion was given"),
             Self::StartedOver => f.write_str("The owner started over"),
+            Self::RuntimeChanged => f.write_str("The Assistant’s model or thinking effort changed"),
             Self::ContextFull => f.write_str("Its context is full"),
             Self::SubagentEnded { status } => write!(f, "{SUBAGENT}{status}"),
             Self::CapabilityGiven { giver, capability } => {

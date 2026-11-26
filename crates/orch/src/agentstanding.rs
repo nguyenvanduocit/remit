@@ -342,6 +342,9 @@ pub(crate) fn standalone_standing(
         st.asks.extend([Ask::Steer, Ask::Interrupt]);
         st.on_message = on_message;
     }
+    if chains::assistant::can_change_runtime(k) {
+        st.asks.push(Ask::ChangeRuntime);
+    }
     if !k.session_id.is_empty() {
         st.asks.push(Ask::Restart);
     }

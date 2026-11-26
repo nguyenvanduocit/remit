@@ -332,6 +332,19 @@ impl Handler for MentorApi {
         Err(denied("block_pick"))
     }
 
+    async fn assistant_runtime_options(&self) -> Result<wire::app::AssistantRuntimeOptions, Failure> {
+        Err(denied("assistant_runtime_options"))
+    }
+
+    async fn assistant_set_runtime(
+        &self,
+        _request: Request,
+        _model: Option<String>,
+        _effort: Option<String>,
+    ) -> Result<Ack, Failure> {
+        Err(denied("assistant_set_runtime"))
+    }
+
     async fn assistant_prompt(
         &self,
         _request: Request,
