@@ -81,7 +81,7 @@ pub(crate) fn default_agents() -> Vec<Agent> {
                 "Reviewer",
                 "verification",
                 Title::Worker,
-                "Reads a change and judges its correctness, design and risks; edits nothing.",
+                "Reviews the diff and verifies the behaviour against the acceptance criteria; edits nothing.",
                 says(REVIEWER_INSTRUCTIONS),
             )
         },
@@ -92,7 +92,7 @@ pub(crate) fn default_agents() -> Vec<Agent> {
                 "QC",
                 "verification",
                 Title::Worker,
-                "Verifies a change's behaviour against the goal: runs the tests, reproduces the bug; edits nothing.",
+                "Runs the distinct verification requested for a change that needs separate QC; edits nothing.",
                 says(QC_INSTRUCTIONS),
             )
         },

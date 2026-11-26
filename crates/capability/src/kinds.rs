@@ -20,7 +20,7 @@ use chains::cap_names::{
 const PLAYBOOK_NOTE: &str = "PLAYBOOKS — list_playbooks and read_playbook describe how kinds of work have gone well: read one when it fits this goal and take what helps. None binds you; the goal and the rules below do.";
 
 /// What a chore's Chair adds to the note: a chore stays small.
-const CHORE_NOTE: &str = " This chain is a chore: a small, well-understood change whose changes pass QC alone. If it turns out bigger (a design choice, several repositories, a root cause still unknown), stop growing it: finish_chain saying so, and say it needs a work chain.";
+const CHORE_NOTE: &str = " This chain is a chore: a small, well-understood change. If it turns out bigger (a design choice, several repositories, a root cause still unknown), stop growing it: finish_chain saying so, and say it needs a work chain.";
 
 /// What an objective chain's Chair works by, after the craft of the seat and before the measure rule.
 const OBJECTIVE_NOTE: &str = " The goal says what this chain does with the owner's objectives: shape a new one from a big or half-formed request, review the active ones against the measure rule, or check in on where their key results stand. The reference playbooks objective, okr-review and okr-checkin carry the procedure of each: read the one that fits with read_playbook. ";

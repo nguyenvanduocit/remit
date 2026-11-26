@@ -46,7 +46,7 @@ pub fn signal_source_specs() -> Vec<SignalSourceSpec> {
             SignalSource::Landing,
             "Landings",
             format!("{CHAIN_KEY_PREFIX}<chain>.landing.<repository>"),
-            "How a chain's change stands on its way onto its base: the landing, its state (judging, ready, checking, landed, returned, reverted), the version land submitted, the commit it landed as, the forge's checks on that commit, the latest reviewer and QC verdict on it and who made the version; a reading each time one of them moves, with what moved it.",
+            "How a chain's change stands on its way onto its base: the landing, its state (judging, ready, checking, landed, returned, reverted), the version land submitted, the commit it landed as, the forge's checks on that commit, its latest change verdicts and who made the version; a reading each time one of them moves, with what moved it.",
             "The Chair of that chain, and of each chain that serves the same objective, to wake when the change lands or comes back.",
         ),
         spec(

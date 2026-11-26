@@ -1,5 +1,5 @@
 # Remit's rails (ADR-0087): a change that touches one of these paths needs a security verdict on the version it lands,
-# beside review and QC. One path glob a line: * within a path element, ** across them, a directory covers what is under
+# beside the independent review. One path glob a line: * within a path element, ** across them, a directory covers what is under
 # it. This file and every path under .remit/release/ are rails by code (shipping/src/gate.rs `required_gates`), in every
 # repository, so neither is listed here (ADR-0116).
 crates/auth

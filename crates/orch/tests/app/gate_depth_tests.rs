@@ -1,5 +1,5 @@
 //! How deep a change's review goes (ADR-0118, point 4), driven as the Chair drives it: when the Chair lands a version, a
-//! decider says how risky it is and whether it alters a rail; what it is sure of raises the effort of the reviewer and QC
+//! decider says how risky it is and whether it alters a rail; what it is sure of raises the effort of the change reviewers
 //! the Chair hires and adds the security gate, and nothing it says lowers a gate. The landing's ending scores it: live is
 //! it holding, a revert is it breaking.
 
@@ -129,7 +129,7 @@ async fn a_change_a_decider_is_sure_is_risky_and_alters_a_rail_gets_deeper_revie
     assert_eq!(judging.version.effort.as_deref(), Some("max"));
     assert_eq!(
         judging.version.gates,
-        vec![Gate::Reviewer, Gate::Qc, Gate::Security],
+        vec![Gate::Reviewer, Gate::Security],
         "no path of hello.txt is a rail: the decider added the gate"
     );
     assert_eq!(judging.version.judged.len(), 2);
@@ -158,7 +158,7 @@ async fn a_decider_too_unsure_or_absent_leaves_the_review_as_the_kind_and_the_ra
         let usual = t.chair.effort.clone();
         let judging = t.land().await;
         assert_eq!(judging.version.effort, None);
-        assert_eq!(judging.version.gates, vec![Gate::Reviewer, Gate::Qc]);
+        assert_eq!(judging.version.gates, vec![Gate::Reviewer]);
         assert_eq!(
             judging.version.judged.len(),
             judged,
@@ -177,7 +177,7 @@ async fn a_rail_the_path_rule_already_found_is_not_asked_again() {
     )
     .await;
     let judging = t.land().await;
-    assert_eq!(judging.version.gates, vec![Gate::Reviewer, Gate::Qc, Gate::Security]);
+    assert_eq!(judging.version.gates, vec![Gate::Reviewer, Gate::Security]);
     assert_eq!(judging.version.judged.len(), 1, "only how risky it is");
 }
 
@@ -213,7 +213,6 @@ async fn a_change_the_owner_takes_back_proved_a_middle_depth_right_and_says_noth
     let t = chain_of(sure(1, 0.02)).await;
     let judging: Landing = t.land().await;
     t.approve(Gate::Reviewer).await;
-    t.approve(Gate::Qc).await;
     let landed = t
         .until(|l| l.id == judging.id, |l| l.state == LandingState::Landed)
         .await;

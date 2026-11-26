@@ -1,7 +1,7 @@
 //! How deep a change's review goes (ADR-0118, point 4). When a version of a chain's change is recorded, two questions are
 //! asked of a decider about its summary, the paths it touches and the chain's goal: how risky it is (`gate.risk`, a score
 //! of three levels, each an effort), and whether it alters what a rail does though no path it touches is one the
-//! repository declares (`gate.touches_rail`). The first sets the effort its reviewer and QC run at, the second adds the
+//! repository declares (`gate.touches_rail`). The first sets the effort the change reviewers run at, the second adds the
 //! security gate. Both only tighten: a judge runs at the higher of its usual effort and the one judged (`tightened`), and a
 //! gate is added, never removed or lowered; a decider that is unsure, late or absent leaves the depth as the chain's kind
 //! and the rails file make it. What the decider said is kept on the landing's version (`LandingVersion::judged`), and what
@@ -61,7 +61,7 @@ pub struct Change<'a> {
 pub struct Reviewed {
     /// Every judgment answered, by id: what the gates and the landing then score.
     pub judged: Vec<String>,
-    /// The effort the reviewer and QC are raised to: a decider acted on how risky the change is, and it is above the usual.
+    /// The effort the change reviewers are raised to: a decider acted on how risky the change is, and it is above the usual.
     pub effort: Option<Effort>,
     /// Whether a decider acted on the change altering a rail: the security gate is added.
     pub security: bool,

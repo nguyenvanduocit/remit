@@ -56,6 +56,7 @@ async fn approve(r: &Rig, chain: &Chain, gate: Gate) {
     let input: VerdictInput = serde_json::from_value(serde_json::json!({
         "verdict": "approve",
         "notes": "read the diff and ran it",
+        "behaviourEvidence": "ran the greeting scenario",
         "findings": [{"keyResult": "", "item": "the change", "status": "met", "evidence": "the file:1"}],
     }))
     .unwrap();
@@ -208,7 +209,6 @@ async fn a_rounds_pick_lands_and_the_other_attempt_never_does() {
         })
         .await;
         approve(&r, &ch, Gate::Reviewer).await;
-        approve(&r, &ch, Gate::Qc).await;
         started.push(ch);
     }
     for ch in &started {

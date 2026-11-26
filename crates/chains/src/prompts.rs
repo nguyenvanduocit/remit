@@ -1,6 +1,6 @@
 //! The briefs Remit writes: what the Chair and a worker read first. Every rule an agent works by is stated here once.
 
-use model::{Card, Chain, ChainOrigin, ChainStatus, ChangeGates, EdgeKind, Origin};
+use model::{Card, Chain, ChainOrigin, ChainStatus, EdgeKind, Origin};
 
 use crate::Result;
 use crate::chain_core::Core;
@@ -204,7 +204,7 @@ HOW YOU WORK
 - Step by step or a script. Go step by step, one hire_agent and one report at a time, when each next step needs your judgement of the last report. When the shape of the work is known before it starts (a fan-out to several agents and a judge of their results, verify each result, a loop of fix and verify until the tests pass or nothing new turns up, a pipeline, a wait for a time, a signal or the owner between steps), write it as a script and start it with run_workflow: Remit runs it durably, through waits and restarts, puts each agent() to work and accepts its report, and you take no turn until its result reaches you as a message starting with "[workflow". Judge that result as you judge a report. hire_agent stays the tool for one deliverable with criteria you judge yourself; subscribe and routines are for time. The workflows skill has the API, its rules and worked patterns; list_workflows shows each run's steps and stop_workflow ends one.
 - A hire is a new agent of yours: it holds a copy of what its agent holds, and what the owner changes in that agent later never reaches it. list_agent_definitions shows what each holds and list_library what exists. Give a hire the tools and skills its work needs and no more: an agent that only reads gets Read, Grep and the like, not Edit or Bash; a skill it will use is named, not left for it to find. Leave them out to keep its agent's.
 - An agent that changes, reviews or verifies code works in one repository: its cwd is where it reads that repository's own instructions (CLAUDE.md, AGENTS.md) and the only place it may change files. open_repo the repository and hire the agent with the path open_repo returns as its cwd; agents commit there and never push. When the work reaches another repository, open that one and hire another agent there. An agent that only investigates data keeps the chain's directory.
-{gates}
+- Every change needs an independent reviewer who reads the diff and verifies the acceptance criteria with the smallest relevant run or independent test evidence. Hire the reviewer with the engineer's card in inputs and the worktree as cwd. Give the chain shell when the reviewer must run a check. On a revision, ask that reviewer to read the new diff and rerun the checks it can affect. Use a separate QC only for a distinct verification task that needs another environment or method; give land a qc_reason and include QC's evidence in the review. Use the security gate when land names it.
 - A gate judges a committed version that no one edits while it judges: its record_verdict is refused while the worktree has uncommitted changes, and it cannot commit. Hire or route a reviewer, QC or security once the engineer has committed the version and has ended its turn in that worktree; the verdict that counts is on the version you land.
 - When its gates approve, land it and end your turn: land runs the repository's checks and puts the version in the merge queue, which combines it with the base, checks the combined tree and pushes it as one commit; each step comes as a message. A version sent back (a conflict with what landed before it, a check that failed once combined) is yours to fix and land again, judged again. Its title and description are the landed commit's message, what the owner reads after: what, why, evidence with file:line, how verified, risks.
 - land asks how much the change matters, and why in one line: the owner reads what landed in that order. high: a customer or production is hurt now, or other work waits on this. medium: an ordinary fix or feature that nothing waits on. low: nothing breaks if it waits (tests, refactors, docs). Rate one level higher when the change writes or migrates data, touches money, permissions or authentication, or is hard to undo. priority_why is the line the owner reads beside it: what waits on it or what breaks if it is wrong, with the ticket or the number when the goal has one. Rate again on every land, because a new version can matter more or less.
@@ -238,20 +238,7 @@ Start now."#,
         ),
         rules,
         ch.workdir,
-        gates = gates_rule(ch.kind.gates()),
     )
-}
-
-/// The rule that names the gates a chain's changes pass before they publish (ADR-0110). Pure.
-fn gates_rule(gates: ChangeGates) -> &'static str {
-    match gates {
-        ChangeGates::ReviewAndQc => {
-            "- Every change passes two independent gates before it lands: a reviewer (agent \"reviewer\": reads the diff for correctness, design, risks and the repository's conventions) and a QC (agent \"qc\": verifies the behaviour against the goal by running tests, reproductions or the scenario, not by reading the author's claims). Hire them with the engineer's card in inputs, so they get its report and the link is drawn. Neither may be the engineer who wrote it; each records its verdict on the change with record_verdict, and the queue lands no version without both approvals on it."
-        }
-        ChangeGates::Qc => {
-            "- This chain's changes are small, so each passes one gate before it lands: a QC (agent \"qc\": verifies the behaviour against the goal by running tests, reproductions or the scenario, not by reading the author's claims). Hire no reviewer, research or design for it. Hire the QC with the engineer's card in inputs, so it gets its report and the link is drawn. It may not be the engineer who wrote it; it records its verdict on the change with record_verdict, and the queue lands no version without its approval on it. A change that touches a rail still needs a security verdict, which land names."
-        }
-    }
 }
 
 /// The rule a chain with the data capability adds to its Chair's brief: a data claim carries its query. Empty for

@@ -115,7 +115,7 @@ text_enum! {
         /// An ordinary request.
         #[default]
         Work = "work",
-        /// Work small enough that running it is the whole judgement: its changes pass QC alone (ADR-0110).
+        /// A small, well-understood change with a focused implementation brief.
         Chore = "chore",
         /// Shapes, reviews or checks in on the owner's objectives.
         Objective = "objective",
@@ -133,20 +133,6 @@ text_enum! {
 }
 
 impl ChainKind {
-    /// The gates a chain of this kind passes its changes through: QC alone for a chore, review and QC for every other.
-    pub const fn gates(self) -> ChangeGates {
-        match self {
-            Self::Chore => ChangeGates::Qc,
-            Self::Work
-            | Self::Objective
-            | Self::Author
-            | Self::Coach
-            | Self::Analyst
-            | Self::Librarian
-            | Self::Trial => ChangeGates::ReviewAndQc,
-        }
-    }
-
     /// Whether the owner waits on its result, so it takes no slot (ADR-0001).
     pub const fn owner_waits(self) -> bool {
         match self {
@@ -206,6 +192,9 @@ pub struct Submit {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub priority: Option<Priority>,
     pub priority_why: String,
+    /// Why a separate QC verdict is required for this change.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qc_reason: Option<String>,
     /// The canary stage the version lands as, when it is one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan: Option<StagePlan>,
@@ -262,6 +251,9 @@ pub struct Approval {
     pub verdict: Verdict,
     #[serde(default)]
     pub notes: String,
+    /// What verified the committed behaviour when the reviewer owns acceptance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub behaviour_evidence: Option<String>,
     #[serde(default)]
     pub findings: Vec<Finding>,
     #[serde(default)]
@@ -321,9 +313,8 @@ text_enum! {
     #[derive(Default)]
     pub enum ChangeGates {
         #[default]
+        Review = "review",
         ReviewAndQc = "review-and-qc",
-        /// QC alone: work small enough that running it is the whole judgement.
-        Qc = "qc",
     }
 }
 
@@ -332,7 +323,7 @@ impl ChangeGates {
     pub const fn gates(self) -> &'static [Gate] {
         match self {
             Self::ReviewAndQc => &[Gate::Reviewer, Gate::Qc],
-            Self::Qc => &[Gate::Qc],
+            Self::Review => &[Gate::Reviewer],
         }
     }
 }

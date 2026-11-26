@@ -27,7 +27,7 @@ use crate::repochecks::{run_checks, the_jail};
 use crate::round::approved_state;
 use chains::apply::Records;
 use chains::chain_core::{first_line, new_id};
-use chains::gate::missing_approvals;
+use chains::gate::{missing_approvals, review_needs_evidence};
 use chains::git::{Check, git};
 use chains::live::LandingWrite;
 use chains::review_depth::{Change, Said};
@@ -55,6 +55,8 @@ pub struct LandInput {
     /// the commit's body in the owner's language: what changed and why, evidence (file:line), how it was verified, risks
     #[serde(default)]
     pub description: String,
+    /// why a separate QC agent must verify this change in a distinct environment or by a distinct method
+    pub qc_reason: Option<String>,
     /// for a stage of a canary only: who this landing reaches once deployed, "0%, dark behind flag checkout_v2" for the
     /// first stage, then the share it grows to; for undo, what it brings back. Empty lands the change to everyone the base
     /// reaches.
@@ -247,6 +249,12 @@ impl Shipping {
             description: input.description.trim().to_owned(),
             priority: Some(priority),
             priority_why: input.priority_why.trim().to_owned(),
+            qc_reason: input
+                .qc_reason
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned),
             plan,
             started_at: self.now(),
         };
@@ -446,7 +454,12 @@ impl Shipping {
             ));
         }
         let rails = rails_of(&dir, &base).await?;
-        let mut gates = gates_of(chain.kind.gates(), &dir, &base, &from, &rails).await?;
+        let change_gates = if s.qc_reason.is_none() {
+            model::ChangeGates::Review
+        } else {
+            model::ChangeGates::ReviewAndQc
+        };
+        let mut gates = gates_of(change_gates, &dir, &base, &from, &rails).await?;
         let paths = self
             .pass_rules(&dir, &forked, &from)
             .instrument(tracing::info_span!(attr::CHECKS_SPAN, { attr::CHAIN_ID } = %chain.id))
@@ -487,7 +500,10 @@ impl Shipping {
                 gates,
                 by: v.by,
                 title: s.title.clone(),
-                description: s.description.clone(),
+                description: match &s.qc_reason {
+                    Some(reason) => format!("{}\n\nSeparate QC: {reason}", s.description),
+                    None => s.description.clone(),
+                },
                 paths,
                 judged: reviewed.judged,
                 effort: reviewed.effort.map(|e| e.as_str().to_owned()),
@@ -542,6 +558,14 @@ impl Shipping {
             .iter()
             .filter(|x| x.repo == l.repo && x.reverts.is_none())
             .collect();
+        // Keep a declared QC gate across resubmissions of the same patch or replacement of an open version.
+        if !l.version.gates.contains(&Gate::Qc)
+            && mine.iter().any(|was| {
+                was.version.gates.contains(&Gate::Qc) && (was.version.change == l.version.change || was.state.open())
+            })
+        {
+            l.version.gates.insert(1, Gate::Qc);
+        }
         l.version.number = i64::try_from(mine.len()).unwrap_or(i64::MAX).saturating_add(1);
         let cause = Cause {
             actor: by_agent(&chain.chair_id),
@@ -577,12 +601,12 @@ impl Shipping {
                 ""
             };
             let depth = l.version.effort.as_deref().map_or_else(String::new, |e| {
-                format!(" Remit runs the reviewer and QC at {e} effort, as the change was judged risky.")
+                format!(" Remit runs the change reviewers at {e} effort, as the change was judged risky.")
             });
             format!(
                 "Version {} of {} is checked and waits for its gates:\n- {}\nHire a judge for each gate listed (a \
-                 reviewer, role \"reviewer\", reviews the diff; a QC, role \"qc\", verifies the behaviour against the \
-                 goal); each records its verdict with record_verdict on this version.{security}{depth} {} the moment the \
+                 reviewer, role \"reviewer\", reviews the diff and verifies the behaviour; a separate QC, role \"qc\", \
+                 runs the distinct check named for it); each records its verdict with record_verdict on this version.{security}{depth} {} the moment the \
                  last approves; a commit after it needs land again.",
                 l.version.number,
                 l.repo,
@@ -658,7 +682,12 @@ fn approved_by(approvals: &[model::Approval], l: &Landing) -> Vec<String> {
         .filter_map(|g| {
             approvals
                 .iter()
-                .rfind(|a| a.repo == l.repo && a.role == g.role() && a.change == l.version.change)
+                .rfind(|a| a.repo == l.repo && a.role == g.role())
+                .filter(|a| {
+                    a.change == l.version.change
+                        && a.verdict == model::Verdict::Approve
+                        && !review_needs_evidence(a, &l.version.gates)
+                })
                 .map(|a| a.id.clone())
         })
         .collect()

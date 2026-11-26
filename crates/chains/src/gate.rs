@@ -1,5 +1,5 @@
 //! The gates a change passes, as the chain core reads them (ADR-0087): which approvals it still lacks of the gates it
-//! needs (its chain's `ChangeGates`, ADR-0110), what a goal judge says is still missing. Recording a verdict is shipping's (gate.rs there).
+//! needs (ADR-0131), what a goal judge says is still missing. Recording a verdict is shipping's (gate.rs there).
 
 use model::{Approval, Finding, FindingBlocker, FindingStatus, Gate, Verdict};
 
@@ -24,10 +24,21 @@ pub fn missing_approvals(approvals: &[Approval], repo: &str, change: &str, gates
                     last.name
                 ));
             }
+            Some(last) if review_needs_evidence(last, gates) => {
+                missing.push(format!("{g}: record the behaviour evidence for this version"));
+            }
             Some(_) => {}
         }
     }
     missing
+}
+
+/// A review on its own must cover behaviour. Recorded two-gate versions also have an independent QC verdict.
+pub fn review_needs_evidence(a: &Approval, gates: &[Gate]) -> bool {
+    a.role == Gate::Reviewer.role()
+        && a.verdict == Verdict::Approve
+        && a.behaviour_evidence.is_none()
+        && !gates.contains(&Gate::Qc)
 }
 
 /// Whether a is an approval of another version of a change than change, the one it has now.
@@ -60,6 +71,9 @@ pub fn verdict_record(a: &Approval) -> String {
         b.push_str(&format!("\n- [{}] {}: {}", f.status, f.item, f.evidence));
     }
     b.push_str(&format!("\nNotes:\n{}", a.notes));
+    if let Some(evidence) = &a.behaviour_evidence {
+        b.push_str(&format!("\nBehaviour evidence:\n{evidence}"));
+    }
     b
 }
 

@@ -62,8 +62,7 @@ struct CreateChainInput {
     /// them when it works, its scope, and how to tell it is done (app skill, references/chains.md)
     intent: String,
     /// what kind of chain it is, which sets what code gives it: work (the default: an ordinary request; it starts with no
-    /// capability and its Chair gives or asks for what it needs), chore (a small, well-understood change whose changes
-    /// pass QC alone), objective (shape, review or check in on objectives; the owner waits on it), author (write
+    /// capability and its Chair gives or asks for what it needs), chore (a small, well-understood change with a focused review), objective (shape, review or check in on objectives; the owner waits on it), author (write
     /// playbooks, agents and skills from his words, naming what is open on his screen; the owner waits on it), coach
     /// (how the employees learn) or trial (a seeded-fault trial of the judges). A playbook that fits is named in intent,
     /// never here

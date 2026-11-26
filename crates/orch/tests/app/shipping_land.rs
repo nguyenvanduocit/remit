@@ -109,11 +109,16 @@ pub(crate) async fn chain_seeded(
 
 impl Landed {
     pub(crate) async fn land(&self) -> Landing {
+        self.land_with_qc(None).await
+    }
+
+    async fn land_with_qc(&self, qc_reason: Option<&str>) -> Landing {
         let input = LandInput {
             title: "feat: say hello".to_owned(),
             priority: "high".to_owned(),
             priority_why: "the greeting waits on it".to_owned(),
             description: "Adds a greeting.".to_owned(),
+            qc_reason: qc_reason.map(str::to_owned),
             ..LandInput::default()
         };
         self.r.o.shipping.land(&self.chair, input).await.unwrap();
@@ -138,13 +143,17 @@ impl Landed {
 
     /// A judge of gate on the chain records its approve through record_verdict, as its tool does.
     pub(crate) async fn approve(&self, gate: Gate) {
+        self.approve_with_evidence(gate, "ran the greeting scenario").await;
+    }
+
+    async fn approve_with_evidence(&self, gate: Gate, evidence: &str) {
         let signs = match gate {
             Gate::Reviewer => Signs::Review,
             Gate::Qc => Signs::Qc,
             Gate::Security => Signs::Security,
         };
         let mut judge = Card::default();
-        judge.id = format!("c_{gate}");
+        judge.id = chains::chain_core::new_id("c_");
         judge.home.clone_from(&self.chain.id);
         judge.name = gate.to_string();
         judge.signs = signs;
@@ -152,6 +161,7 @@ impl Landed {
         let input: VerdictInput = serde_json::from_value(serde_json::json!({
             "verdict": "approve",
             "notes": "read the diff and ran it",
+            "behaviourEvidence": evidence,
             "findings": [{"keyResult": "", "item": "the change", "status": "met", "evidence": "hello.txt:1"}],
         }))
         .unwrap();
@@ -168,12 +178,16 @@ impl Landed {
 #[tokio::test]
 async fn an_approved_change_lands_on_the_base_by_itself() {
     let t = chain_with_change(|wt| std::fs::write(wt.join("hello.txt"), "hello\n").unwrap()).await;
+    t.approve_with_evidence(Gate::Reviewer, "").await;
     let judging = t.land().await;
-    assert_eq!(judging.version.gates, vec![Gate::Reviewer, Gate::Qc]);
+    assert_eq!(
+        t.origin_main(),
+        t.base,
+        "a review without behavioural evidence must wait"
+    );
+    assert_eq!(judging.version.gates, vec![Gate::Reviewer]);
     assert_eq!(judging.version.paths, vec!["hello.txt".to_owned()]);
     t.approve(Gate::Reviewer).await;
-    assert_eq!(t.origin_main(), t.base, "nothing lands on one gate of two");
-    t.approve(Gate::Qc).await;
     let landed = t
         .until(|l| l.id == judging.id, |l| l.state == LandingState::Landed)
         .await;
@@ -190,11 +204,7 @@ async fn an_approved_change_lands_on_the_base_by_itself() {
     let message = sh(&t.origin, &["log", "-1", "--format=%an%n%B", "main"]);
     assert!(message.starts_with("Remit\nfeat: say hello"), "{message}");
     assert!(message.contains(&format!("Remit-Landing: {}", landed.id)), "{message}");
-    assert_eq!(
-        landed.version.verdicts.len(),
-        2,
-        "the verdicts that let it in are named"
-    );
+    assert_eq!(landed.version.verdicts.len(), 1, "the review that let it in is named");
 
     // the owner takes it back: a revert lands ahead of everything, and the base holds the change no more
     let why = "the greeting is wrong".to_owned();
@@ -228,7 +238,28 @@ async fn an_approved_change_lands_on_the_base_by_itself() {
     );
 }
 
-// A change to a path the repository's .remit/rails names does not land on review and QC alone: it waits for a security
+#[tokio::test]
+async fn a_distinct_qc_check_is_required_when_the_chair_asks_for_it() {
+    let t = chain_with_change(|wt| std::fs::write(wt.join("hello.txt"), "hello\n").unwrap()).await;
+    let judging = t
+        .land_with_qc(Some("Verify the greeting with the desktop client."))
+        .await;
+    assert_eq!(judging.version.gates, vec![Gate::Reviewer, Gate::Qc]);
+    assert!(
+        judging
+            .version
+            .description
+            .contains("Verify the greeting with the desktop client.")
+    );
+    t.approve(Gate::Reviewer).await;
+    let waiting = t.until(|l| l.id == judging.id, |_| true).await;
+    assert_eq!(waiting.state, LandingState::Judging);
+    t.approve(Gate::Qc).await;
+    t.until(|l| l.id == judging.id, |l| l.state == LandingState::Landed)
+        .await;
+}
+
+// A change to a path the repository's .remit/rails names also waits for a security
 // verdict on the same change.
 #[tokio::test]
 async fn a_change_to_a_rail_waits_for_security() {
@@ -242,7 +273,6 @@ async fn a_change_to_a_rail_waits_for_security() {
         judging.version.gates
     );
     t.approve(Gate::Reviewer).await;
-    t.approve(Gate::Qc).await;
     let still = t.until(|l| l.id == judging.id, |_| true).await;
     assert_eq!(
         still.state,
@@ -260,6 +290,9 @@ async fn a_change_to_a_rail_waits_for_security() {
 async fn a_carried_version_its_gates_approved_lands_on_the_next_sync() {
     let t = chain_with_change(|wt| std::fs::write(wt.join("hello.txt"), "hello\n").unwrap()).await;
     let judging = t.land().await;
+    let mut carried = judging.clone();
+    carried.version.gates = vec![Gate::Reviewer, Gate::Qc];
+    t.r.o.store.update(move |tx| tx.put_landing(carried)).await.unwrap();
     for gate in [Gate::Reviewer, Gate::Qc] {
         let a = Approval {
             id: format!("ap_{gate}"),
@@ -271,6 +304,7 @@ async fn a_carried_version_its_gates_approved_lands_on_the_next_sync() {
             role: gate.role(),
             verdict: Verdict::Approve,
             notes: "approved on the MR".to_owned(),
+            behaviour_evidence: None,
             findings: Vec::new(),
             at: judging.created_at,
         };
@@ -415,7 +449,6 @@ async fn a_change_squashed_outside_the_queue_is_found_landed() {
     t.push_elsewhere("hello.txt", "hello, world\n", "say more");
     let main = t.origin_main();
     t.approve(Gate::Reviewer).await;
-    t.approve(Gate::Qc).await;
     let landed = t.until(|l| l.id == judging.id, |l| !l.state.open()).await;
     assert_eq!(landed.state, LandingState::Landed, "{:?}", landed.state);
     assert_eq!(landed.commit, Some(squash), "landed at the commit that brought it");

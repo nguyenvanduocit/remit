@@ -135,7 +135,7 @@ pub struct LandingVersion {
     /// The judgments a decider made of the change when it was recorded (ADR-0118, point 4: how risky it is, whether it
     /// alters a rail), by id: what its outcome is recorded on once the landing is live or taken back.
     pub judged: Vec<String>,
-    /// The effort its reviewer and QC run at, when a decider found it risky enough to raise them above their usual: `high`,
+    /// The effort its change reviewers run at, when a decider found it risky enough to raise them above their usual: `high`,
     /// `xhigh` or `max`. Only raises: a judge never runs below what it would have.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<String>,

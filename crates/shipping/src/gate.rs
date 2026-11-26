@@ -1,6 +1,6 @@
 //! No change lands unchecked. Before the queue lands a version of a repository's change, the gates its chain names must
-//! approve that exact change: an independent reviewer (reads the diff: correctness, design, risks) and a QC
-//! (verifies the behaviour against the goal: tests, repro), or the QC alone for a chore (ADR-0110). A change that touches
+//! approve that exact change: an independent reviewer checks its diff and behaviour, with a separate QC gate for a distinct
+//! check when requested (ADR-0131). A change that touches
 //! a rail the repository declares in `.remit/rails` needs security too, on the same change (ADR-0087): which gates a
 //! change needs is a pure function of the chain's gates and the paths it touches (`required_gates`), read the same way by
 //! land and by the verdict that lets a landing into the queue. Verdicts are tied to the change's patch id, so
@@ -258,6 +258,8 @@ pub struct VerdictInput {
     /// reviewer's and QC's are named by the commit the change lands as.
     #[serde(default)]
     pub notes: String,
+    /// reviewer approval: the command and result or independent check evidence proving behaviour at this version
+    pub behaviour_evidence: Option<String>,
     /// one per key result of the goal, and one per defect class you ask changes for: keyResult (the id of the key result it
     /// rolls up to, when your brief lists them), item (the sub-point you checked), status (met, not_met or unverified),
     /// evidence (file:line, command output, a query and what it returned, or why it could not be checked) and, for
@@ -522,6 +524,12 @@ impl Shipping {
             role,
             verdict: i.verdict,
             notes: i.notes.trim().to_owned(),
+            behaviour_evidence: i
+                .behaviour_evidence
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned),
             findings: i.findings,
             at: self.now(),
         };

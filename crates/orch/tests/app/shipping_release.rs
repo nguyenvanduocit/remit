@@ -187,7 +187,6 @@ impl Landed {
     pub(crate) async fn landed_and_green(&self) -> Landing {
         let judging = self.land().await;
         self.approve(Gate::Reviewer).await;
-        self.approve(Gate::Qc).await;
         let landed = self
             .until(|l| l.id == judging.id, |l| l.state == LandingState::Landed)
             .await;

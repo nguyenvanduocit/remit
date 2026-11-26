@@ -31,7 +31,7 @@ pub struct ProposeInput {
     pub goal: String,
     /// why this is the most valuable thing to do now, in one or two sentences
     pub why: String,
-    /// work (the default) or chore: a small, well-understood change whose changes pass QC alone. A playbook that fits is
+    /// work (the default) or chore: a small, well-understood change. A playbook that fits is
     /// named in the goal, never here
     #[serde(default)]
     pub kind: ChainKind,

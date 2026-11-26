@@ -2524,7 +2524,7 @@ export type LandingVersion = {
    */
   judged: string[];
   /**
-   * The effort its reviewer and QC run at, when a decider found it risky enough to raise them above their usual: `high`,
+   * The effort its change reviewers run at, when a decider found it risky enough to raise them above their usual: `high`,
    * `xhigh` or `max`. Only raises: a judge never runs below what it would have.
    */
   effort?: string;
@@ -3092,7 +3092,7 @@ export type Chain = {
  * What a chain is to code (ADR-0113): its admission, its gates, its Chair's fixed brief and who may start it. Set
  * once when the chain is queued; a playbook is reference and decides none of it.
  * - `work`: An ordinary request.
- * - `chore`: Work small enough that running it is the whole judgement: its changes pass QC alone (ADR-0110).
+ * - `chore`: A small, well-understood change with a focused implementation brief.
  * - `objective`: Shapes, reviews or checks in on the owner's objectives.
  * - `author`: Writes playbooks, agents and skills from the owner's words.
  * - `coach`: Coaches how the employees learn.
@@ -3141,6 +3141,8 @@ export type Submit = {
   /** The Chair's rating of this version. */
   priority?: Priority;
   priorityWhy: string;
+  /** Why a separate QC verdict is required for this change. */
+  qcReason?: string;
   /** The canary stage the version lands as, when it is one. */
   plan?: StagePlan;
   startedAt: Time;

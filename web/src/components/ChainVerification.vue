@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 // what, a card per judge. To change what is checked or how strictly, the owner tells the Chair or the Assistant.
 const props = defineProps<{ view: ChainView }>();
 const router = useRouter();
-// The judges a page at a time: a chain across many repositories has a reviewer and a QC per change.
+// The judges a page at a time: each change has its own review and any additional verdicts.
 const JUDGES = 24;
 const judgesShown = ref(JUDGES);
 const judges = computed(() => props.view.verification.judges.slice(0, judgesShown.value));
@@ -33,7 +33,6 @@ const WORD: Record<GateState, string> = { approved: 'Passed', stale: 'Stale', ch
        not on one change: the server lists it first and it takes the full row. -->
   <div class="@container flex flex-col gap-5">
     <PageSection title="Gates" :count="view.verification.gates.length" id="gates" data-gates>
-      <template #aside>each change passes a reviewer and a QC, and a security reviewer when it touches a rail; the goal judge rules on the whole chain</template>
       <div class="grid gap-3" :class="view.verification.gates.length === 4 ? '@xl:grid-cols-2 @5xl:grid-cols-4' : '@xl:grid-cols-3'">
         <article v-for="g in view.verification.gates" :key="g.key" class="gate" :data-gate="g.key" :data-state="g.state" :aria-label="g.label">
           <div class="flex items-start gap-2">
@@ -59,7 +58,7 @@ const WORD: Record<GateState, string> = { approved: 'Passed', stale: 'Stale', ch
         <VerdictEntry v-for="j in judges" :key="j.key" :judge="j" :open-card="watch" :class="{ 'col-span-full': j.role === 'judge' }" />
       </div>
       <ShowMore v-if="view.verification.judges.length > judgesShown" class="mt-3" @click="judgesShown += JUDGES">Show {{ Math.min(JUDGES, view.verification.judges.length - judgesShown) }} more of {{ view.verification.judges.length - judgesShown }} judges</ShowMore>
-      <EmptyState v-if="!view.verification.judges.length">No agent has judged this chain yet. A reviewer and a QC judge each change before it is published, and the goal judge checks the result when the Chair asks to finish.</EmptyState>
+      <EmptyState v-if="!view.verification.judges.length">No verdicts yet.</EmptyState>
     </PageSection>
   </div>
 </template>

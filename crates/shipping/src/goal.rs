@@ -909,6 +909,7 @@ impl Shipping {
             role: VerdictRole::Judge,
             verdict: i.verdict,
             notes: i.notes.trim().to_owned(),
+            behaviour_evidence: None,
             findings: i.findings,
             at: self.now(),
         };

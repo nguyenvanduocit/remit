@@ -4,7 +4,7 @@
 // refused and its Chair back at work; `stale` is a chain whose reviewer and QC approved a change an engineer has
 // committed on top of since; `security` is a change that touches a rail, its reviewer and QC approved and its security
 // reviewer not yet given a verdict (the board's chip: Awaiting security); `secured` is that change with security approved too
-// (Review, QC and security passed); `none` was judged by nobody. Its goal judges are the cards `<chainId>-judge1` and
+// (Required reviews passed); `none` was judged by nobody. Its goal judges are the cards `<chainId>-judge1` and
 // `-judge2`, as the app page seeds them. For the Verification verify page, the app page and their tests.
 import type { CheckTone, Finding, Judge, Move, VerdictView, Verification } from '../src/core/generated/types.generated';
 import { findingRecord } from './records';
@@ -60,7 +60,6 @@ export function verificationSeed(chainId: string, which: 'judged' | 'judging' | 
     const refused = which === 'refused';
     return { chainId, rev: 1, judges: refused ? [refusal] : [], gates: [
       { key: 'review', label: 'Review', state: 'none', line: 'Not asked yet', who: '', rounds: [] },
-      { key: 'qc', label: 'QC', state: 'none', line: 'Not asked yet', who: '', rounds: [] },
       refused ? { key: 'goal', label: 'Goal check', state: 'changes', line: 'Not met', who: 'Goal judge', rounds: [false] } : { key: 'goal', label: 'Goal check', state: 'none', line: 'Not asked yet', who: '', rounds: [] },
     ] };
   }

@@ -1,4 +1,4 @@
-//! How a chain's result has been judged, for the owner: a reviewer and a QC on each change, and a security reviewer on a
+//! How a chain's result has been judged, for the owner: an independent review, separate QC when requested, and a security reviewer on a
 //! change that touches a rail (gate.rs), then the goal judge on the result (goal.rs). The agents record their verdicts as approvals; these are the server's reading of them, computed
 //! once here so every channel shows the same: the chip on a chain's board card (`ChainStanding::verification`) and its
 //! Verification tab. A reviewer's or QC's approval is of one version of its repository's change (its patch id): once the
@@ -7,12 +7,12 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use model::{Approval, Chain, ChainStatus, FindingStatus, Gate, Landing, RepoWork, Verdict, VerdictRole};
+use model::{Approval, Chain, ChainStatus, ChangeGates, FindingStatus, Gate, Landing, RepoWork, Verdict, VerdictRole};
 use wire::app::{CheckLook, CheckTone, GateState, GateView, Judge, Move, VerdictView, Verification};
 
 use crate::gate::gate_label;
 use crate::goal::GOAL_JUDGE_NAME;
-use chains::gate::approved_earlier;
+use chains::gate::{approved_earlier, review_needs_evidence};
 use chains::goal::goal_approvals;
 
 /// How something judged reads: `label`, in the colour `tone` names.
@@ -57,17 +57,11 @@ pub fn verification_of(
     current: Option<&Changes>,
 ) -> Verification {
     let mine = of_chain(c, approvals);
-    let mut gates: Vec<GateView> = c
-        .kind
-        .gates()
-        .gates()
-        .iter()
-        .map(|&g| change_gate(g, &mine, current))
+    let mut gates: Vec<GateView> = [Gate::Reviewer, Gate::Qc, Gate::Security]
+        .into_iter()
+        .filter(|&gate| needs_gate(c, landings, gate) || mine.iter().any(|a| a.role == gate.role()))
+        .map(|gate| change_gate(gate, &mine, current, c, landings))
         .collect();
-    // only a change that touches a rail is judged for security: its landing says it needs one, or a verdict was given
-    if needs_security(c, landings) || mine.iter().any(|a| a.role == VerdictRole::Security) {
-        gates.push(change_gate(Gate::Security, &mine, current));
-    }
     gates.push(goal_gate(c, &mine));
     let mut v = Verification {
         chain_id: c.id.clone(),
@@ -156,14 +150,17 @@ fn gates_check(
 ) -> Option<CheckLook> {
     let (mut worst, mut seen, mut awaiting) = (Stand::Passed, false, None);
     for rw in &c.repos {
-        let latest = latest_gates(approvals, &rw.repo);
+        let required = required_of(landings, rw);
+        let latest = latest_gates(approvals, &rw.repo, required);
         if latest.is_empty() {
             continue;
         }
         seen = true;
-        let missing = required_of(c, landings, rw)
-            .iter()
-            .find(|g| !latest.iter().any(|a| a.role == g.role()));
+        let missing = required.iter().find(|g| {
+            !latest
+                .iter()
+                .any(|a| a.role == g.role() && !review_needs_evidence(a, required))
+        });
         let stand = if latest.iter().any(|a| a.verdict != Verdict::Approve) {
             Stand::Refused
         } else if latest.iter().any(|a| verdict_state(a, current) == GateState::Stale) {
@@ -182,8 +179,7 @@ fn gates_check(
     Some(match worst {
         Stand::Refused => check("Changes requested", CheckTone::Needs),
         Stand::Stale => check("Changed since approval", CheckTone::Needs),
-        Stand::Passed if needs_security(c, landings) => check("Review, QC and security passed", CheckTone::Done),
-        Stand::Passed => check("Review and QC passed", CheckTone::Done),
+        Stand::Passed => check("Required reviews passed", CheckTone::Done),
         Stand::Half => check(
             format!("Awaiting {}", awaiting.map_or("review", awaited)),
             CheckTone::Needs,
@@ -192,14 +188,14 @@ fn gates_check(
 }
 
 /// The gates rw's change needs: the ones its newest landing recorded when it was checked (`required_gates`), the chain
-/// kind's before it landed any.
-fn required_of<'a>(c: &'a Chain, landings: &'a [Landing], rw: &RepoWork) -> &'a [Gate] {
+/// default before it has submitted any.
+fn required_of<'a>(landings: &'a [Landing], rw: &RepoWork) -> &'a [Gate] {
     match landings
         .iter()
         .rfind(|l| l.repo == rw.repo && l.reverts.is_none() && !l.version.gates.is_empty())
     {
         Some(l) => &l.version.gates,
-        None => c.kind.gates().gates(),
+        None => ChangeGates::default().gates(),
     }
 }
 
@@ -212,16 +208,17 @@ const fn awaited(g: Gate) -> &'static str {
     }
 }
 
-/// Whether a change of chain c touches a rail, as its newest landing recorded.
-fn needs_security(c: &Chain, landings: &[Landing]) -> bool {
-    c.repos
-        .iter()
-        .any(|rw| required_of(c, landings, rw).contains(&Gate::Security))
+/// Whether a repository in the chain requires gate, as its newest landing recorded.
+fn needs_gate(c: &Chain, landings: &[Landing], gate: Gate) -> bool {
+    if c.repos.is_empty() {
+        return ChangeGates::default().gates().contains(&gate);
+    }
+    c.repos.iter().any(|rw| required_of(landings, rw).contains(&gate))
 }
 
-/// The latest verdict of each gate on repo, security's when one was given.
-fn latest_gates<'a>(approvals: &[&'a Approval], repo: &str) -> Vec<&'a Approval> {
-    [Gate::Reviewer, Gate::Qc, Gate::Security]
+/// The latest verdict of each required gate on repo.
+fn latest_gates<'a>(approvals: &[&'a Approval], repo: &str, required: &[Gate]) -> Vec<&'a Approval> {
+    required
         .iter()
         .filter_map(|g| {
             approvals
@@ -246,7 +243,13 @@ pub fn verdict_state(a: &Approval, current: Option<&Changes>) -> GateState {
 
 /// A change gate against current. As the gate that lets land queue the change, the latest verdict of its role in each
 /// repository stands, and the gate is as bad as its worst repository.
-fn change_gate(gate: Gate, approvals: &[&Approval], current: Option<&Changes>) -> GateView {
+fn change_gate(
+    gate: Gate,
+    approvals: &[&Approval],
+    current: Option<&Changes>,
+    c: &Chain,
+    landings: &[Landing],
+) -> GateView {
     let role = gate.role();
     let mut g = GateView {
         key: gate_key(gate).to_owned(),
@@ -258,11 +261,28 @@ fn change_gate(gate: Gate, approvals: &[&Approval], current: Option<&Changes>) -
         standing.insert(a.repo.as_str(), a);
         g.rounds.push(a.verdict == Verdict::Approve);
     }
+    let mut missing_evidence = false;
     for a in standing.values() {
-        let st = verdict_state(a, current);
+        let required = c
+            .repos
+            .iter()
+            .find(|rw| rw.repo == a.repo)
+            .map_or(ChangeGates::default().gates(), |rw| required_of(landings, rw));
+        let state = verdict_state(a, current);
+        let st = if state == GateState::Approved && review_needs_evidence(a, required) {
+            missing_evidence = true;
+            GateState::None
+        } else {
+            state
+        };
         if gate_rank(st) > gate_rank(g.state) {
             g.state = st;
         }
+    }
+    if missing_evidence && gate_rank(g.state) <= gate_rank(GateState::Approved) {
+        g.state = GateState::None;
+        g.line = "Needs behaviour evidence".to_owned();
+        return g;
     }
     g.line = gate_line(g.state).to_owned();
     let sided: Vec<String> = judges_of(approvals, role)
@@ -389,7 +409,14 @@ pub fn verdict_check(a: &Approval, state: GateState) -> CheckLook {
 
 /// How verdict a reads, in state, against the rounds the same judge gave before it, newest first.
 fn verdict_of(a: &Approval, state: GateState, before: &[&Approval]) -> VerdictView {
-    let (headline, rest) = split_notes(&a.notes);
+    let (headline, mut rest) = split_notes(&a.notes);
+    if let Some(evidence) = &a.behaviour_evidence {
+        if !rest.is_empty() {
+            rest.push_str("\n\n");
+        }
+        rest.push_str("Behaviour evidence\n");
+        rest.push_str(evidence);
+    }
     let more = rest.split('\n').filter(|l| !l.trim().is_empty()).count();
     VerdictView {
         id: a.id.clone(),

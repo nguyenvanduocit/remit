@@ -1,6 +1,6 @@
 # 0113. A playbook is reference, and a chain's kind is code
 
-Status: accepted, 2026-11-19; built; the kind and the capability `release` removed by ADR-0116. Supersedes ADR-0028's "capabilities a playbook lists" (a chain starts with its
+Status: accepted, 2026-11-19; built; the kind and the capability `release` removed by ADR-0116. Supersedes ADR-0028's "capabilities a playbook lists" (a chain starts with its The change-gate column and kind-based policy are superseded by ADR-0131.
 kind's capabilities, and its Chair gives or asks for the rest), ADR-0048's "a playbook names who" (the Chair seat is chosen
 as for a playbook that names none), ADR-0009's playbook allow-list of a client key, and ADR-0110's `Chain.gates` field (the
 gates are read from the chain's kind, which ADR-0110 named as their source). Amends ADR-0001 (`owner_waits` is the kind's),

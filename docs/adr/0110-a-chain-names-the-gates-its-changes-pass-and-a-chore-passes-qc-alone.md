@@ -1,6 +1,6 @@
 # 0110. A chain names the gates its changes pass, and a chore passes QC alone
 
-Status: accepted, 2026-11-18; the landing reads its gates where `submit_mr` and `merge_mr` did (ADR-0114); amended by ADR-0113: the gates are read from the chain's kind (`ChainKind::gates()` returning `model::ChangeGates`, `qc` for `chore`), `Chain.gates` is not stored, and ADR-0113 builds the chore kind; where this record says `Chain.gates` is stored or set, read the kind's gates.
+Status: superseded by ADR-0131. Originally accepted, 2026-11-18; the landing reads its gates where `submit_mr` and `merge_mr` did (ADR-0114); amended by ADR-0113: the gates are read from the chain's kind (`ChainKind::gates()` returning `model::ChangeGates`, `qc` for `chore`), `Chain.gates` is not stored, and ADR-0113 builds the chore kind; where this record says `Chain.gates` is stored or set, read the kind's gates.
 Amends ADR-0087's change gates (review and QC on every change). Source: the owner, 2026-11-18: "make a chore playbook:
 agents always call in the heavy machinery, but some things are very simple", and his choice the same day that the chore
 setting is a chain kind, since a playbook is reference only (a name, a brief, suggested agents).

@@ -117,7 +117,7 @@ pub struct Config {
     pub assistant_dir: PathBuf,
     /// Where Remit keeps its own clone of each repository a chain opens, as `<host>/<project>` (repo.rs).
     pub repos_dir: PathBuf,
-    /// A submit publishes only a change a reviewer and a QC approved (submit.rs).
+    /// A landing publishes only a change its required gates approved.
     pub require_approvals: bool,
     /// How long a finished chain keeps its worktrees after it last changed (archive.rs
     /// `collect_worktrees`); zero: always.
