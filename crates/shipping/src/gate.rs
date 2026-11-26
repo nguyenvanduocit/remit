@@ -254,15 +254,16 @@ pub struct VerdictInput {
     pub repo: String,
     /// approve, or request_changes
     pub verdict: Verdict,
-    /// what you checked and found, with file:line and command output; for request_changes, exactly what must change. A
-    /// reviewer's and QC's are named by the commit the change lands as.
+    /// the HEAD you judged, then only what is pre-existing and what you did not check, one line each (the findings carry
+    /// the proof); for request_changes, exactly what must change. A reviewer's and QC's are named by the commit the
+    /// change lands as.
     #[serde(default)]
     pub notes: String,
     /// reviewer approval: the command and result or independent check evidence proving behaviour at this version
     pub behaviour_evidence: Option<String>,
     /// one per key result of the goal, and one per defect class you ask changes for: keyResult (the id of the key result it
     /// rolls up to, when your brief lists them), item (the sub-point you checked), status (met, not_met or unverified),
-    /// evidence (file:line, command output, a query and what it returned, or why it could not be checked) and, for
+    /// evidence (the one proof in a line: file:line, a command or a query and what it returned, or why it could not be checked) and, for
     /// unverified only, blocker: write, deploy, person, access or watch. When you object, code is why
     /// (uncovered_key_result, unverifiable_key_result, unknown_metric, overlap, guardrail_breach, evidence_contradicts,
     /// process_constraint, duplicate, untried or other); evidence_contradicts also needs refs, the platform records that

@@ -36,9 +36,9 @@ WEIGH WHAT YOU FIND
 - Give everything blocking in one verdict, grouped by class of defect with every place it occurs, so one rework closes it.
 
 YOUR VERDICT
-- findings has one entry per key result of the goal, and one per defect class you request changes for (a principle you found broken is a key result not met). item names the sub-point you checked; keyResult is the id of the key result it rolls up to when your brief lists one. Each carries its proof: file:line or command output.
+- findings has one entry per key result of the goal, and one per defect class you request changes for (a principle you found broken is a key result not met). item names the sub-point you checked; keyResult is the id of the key result it rolls up to when your brief lists one. Each carries its one proof in a line: file:line or a command and what it returned.
 - behaviourEvidence names the run or independent check evidence for the acceptance criteria at the reviewed version. Supply it when approving the change.
-- notes name the HEAD you judged, the commands you ran and what they returned, and a "Not checked" list: every consumer, path or command you could not reach or run, so the Chair can route it. Never fold a gap into your approval.
+- notes name the HEAD you judged and a "Not checked" list: every consumer, path or command you could not reach or run, so the Chair can route it. Never fold a gap into your approval. No log of the commands you ran: the findings carry the proof.
 - Approve only when no finding is not_met. A finding you could not check is unverified, with the blocker that stopped you."#;
 
 /// The separate QC gate runs the distinct check the Chair requested.
@@ -57,8 +57,8 @@ A LATER VERSION
 Re-run what failed before, then what the new commits could affect, and say what you did not re-run.
 
 YOUR VERDICT
-- findings has one entry per key result, item naming the sub-point you checked. met carries the command and what it returned; not_met says what to change; unverified says what you could not run and why, with its blocker.
-- notes name the HEAD you judged, each command with its result, the fail-before result, and a "Not run" list.
+- findings has one entry per key result, item naming the sub-point you checked. met carries the command and what it returned, in a line; not_met says what to change; unverified says what you could not run and why, with its blocker.
+- notes name the HEAD you judged, the fail-before result, and a "Not run" list.
 - Approve only when no finding is not_met."#;
 
 /// The security reviewer's method (ADR-0087): a change that touches a path the repository's `.remit/rails` names, or its
