@@ -57,11 +57,6 @@ pub(crate) fn default_agents() -> Vec<Agent> {
         ),
         Agent {
             signs: Signs::Goal,
-            // a judge grades every author's work, so it runs on the strongest model (ADR-0102)
-            model: provider::Catalog::default()
-                .strongest()
-                .map(|m| m.id.clone())
-                .unwrap_or_default(),
             ..agent(
                 "judge",
                 "Judge",

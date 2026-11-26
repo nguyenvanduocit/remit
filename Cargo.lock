@@ -1188,7 +1188,6 @@ dependencies = [
  "plugin",
  "plugin-sdk",
  "procgroup",
- "provider",
  "reach",
  "regex",
  "reqwest",

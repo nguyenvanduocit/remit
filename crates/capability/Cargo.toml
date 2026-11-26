@@ -34,7 +34,6 @@ source = { path = "../source" }
 forge = { path = "../forge" }
 model = { path = "../model" }
 outcomes = { path = "../outcomes" }
-provider = { path = "../provider" }
 rmcp = { version = "3.9.0", default-features = false, features = ["server"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 schemars = "1.2.3"

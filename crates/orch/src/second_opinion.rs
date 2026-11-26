@@ -155,6 +155,7 @@ impl Orchestrator {
             built.why = SECOND_JUDGE_WHY.to_owned();
             built.brief = "Decide the owner's item as he would, then compare with the answer given.".to_owned();
             built.model = self.resolve_model(&self.cfg.judge_model)?;
+            built.effort = self.cfg.chair_effort.clone();
             built.mode = self.cfg.mode.clone();
             built.cwd = ch.workdir.clone();
             built.created_at = now;

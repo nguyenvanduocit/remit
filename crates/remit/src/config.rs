@@ -120,7 +120,14 @@ pub fn configure(f: Flags, home: &Path) -> Result<(ServerConfig, orch::Config), 
     if std::fs::metadata(&principles).is_err() {
         principles.clear(); // agents are not sent to read a file that is not there
     }
-    let models = provider::Catalog::default();
+    let all = provider::Catalog::default();
+    let models = all.up_to(&f.top_model).ok_or_else(|| {
+        format!(
+            "-top-model: {:?} is not a model this machine offers: choose one of {}",
+            f.top_model,
+            all.describe()
+        )
+    })?;
     require_models(
         &models,
         &[
@@ -132,7 +139,7 @@ pub fn configure(f: Flags, home: &Path) -> Result<(ServerConfig, orch::Config), 
         ("-chair-effort", &f.chair_effort),
         ("-assistant-effort", &f.assistant_effort),
     ])?;
-    // every judge runs on the strongest model, so none grades an author stronger than itself (ADR-0102)
+    // every judge runs on the strongest model offered, so none grades an author stronger than itself (ADR-0102, ADR-0133)
     let judge_model = models.strongest().map(|m| m.id.clone()).unwrap_or_default();
     let addr = listen_addr(&f.addr)?;
     let link = link_addr(&f.link_addr, addr)?;

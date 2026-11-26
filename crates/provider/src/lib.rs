@@ -126,6 +126,14 @@ impl Catalog {
         self.0.iter().find(|m| m.tier == tier)
     }
 
+    /// The catalog without the models above `top`'s tier: the most capable model the owner lets Remit run (`-top-model`).
+    /// None when the catalog does not offer `top`.
+    #[must_use]
+    pub fn up_to(&self, top: &str) -> Option<Self> {
+        let ceiling = self.lookup(top)?.tier;
+        Some(Self(self.0.iter().filter(|m| m.tier <= ceiling).cloned().collect()))
+    }
+
     /// The model of the highest tier, the first listed of two as high: what every judge runs on, so no author it grades
     /// runs on a stronger one (ADR-0102). None for an empty catalog.
     #[must_use]

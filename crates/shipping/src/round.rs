@@ -322,6 +322,7 @@ impl Shipping {
             built.why = ROUND_JUDGE_WHY.to_owned();
             built.brief = "Pick the one attempt of a round whose version lands, then record your pick.".to_owned();
             built.model = self.resolve_model(&self.cfg.judge_model)?;
+            built.effort = self.cfg.chair_effort.clone();
             built.mode = self.cfg.mode.clone();
             built.cwd = home.workdir.clone();
             built.plan = Vec::new();

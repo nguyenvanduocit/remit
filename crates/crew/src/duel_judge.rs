@@ -121,6 +121,7 @@ impl Crew {
             built.why = DUEL_JUDGE_WHY.to_owned();
             built.brief = "Pick the better of two reports on the same brief, then record your pick.".to_owned();
             built.model = judge_model;
+            built.effort = self.cfg.chair_effort.clone();
             built.mode = self.cfg.mode.clone();
             built.cwd = ch.workdir.clone();
             built.plan = Vec::new();

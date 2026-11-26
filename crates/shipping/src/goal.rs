@@ -830,6 +830,7 @@ impl Shipping {
                 built.why = GOAL_JUDGE_WHY.to_owned();
                 built.brief = "Check the team's result against the goal yourself, then record your verdict.".to_owned();
                 built.model = judge_model;
+                built.effort = self.cfg.chair_effort.clone();
                 built.mode = self.cfg.mode.clone();
                 built.cwd = ch.workdir.clone();
                 built.plan = Vec::new();

@@ -24,17 +24,17 @@ use crate::judge::Judged;
 /// The efforts `gate.risk` chooses between, the least risky first, each with its level in words: the levels of its score.
 const DEPTHS: [(Effort, &str); 3] = [
     (
-        Effort::High,
+        Effort::Medium,
         "A careful read and a run settle it: the change is contained, easy to take back, and little that others depend \
          on rests on it.",
     ),
     (
-        Effort::XHigh,
+        Effort::High,
         "It needs a harder look: it changes behaviour that other code, stored data or customers depend on, or has many \
          parts that act on each other.",
     ),
     (
-        Effort::Max,
+        Effort::XHigh,
         "It needs everything: a slip would be costly and hard to undo (lost data, money, a broken contract, an outage), \
          or it changes how the system protects itself.",
     ),
@@ -399,7 +399,7 @@ mod tests {
         let risk = judged(level(2), JudgmentUse::Acted);
         let rail = judged(JudgmentPick::Yes, JudgmentUse::Escalated);
         let r = reviewed(Some(&risk), Some(&rail), "high");
-        assert_eq!(r.effort, Some(Effort::Max));
+        assert_eq!(r.effort, Some(Effort::XHigh));
         assert!(!r.security, "a yes too unsure to act adds no gate");
         assert_eq!(r.judged.len(), 2);
         assert_eq!(r.said.len(), 1);

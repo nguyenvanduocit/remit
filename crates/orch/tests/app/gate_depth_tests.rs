@@ -57,6 +57,7 @@ impl Decider for Sure {
 fn configure(cfg: &mut orch::Config, decider: Option<Arc<dyn Decider>>) {
     cfg.core.models = Some(provider::Catalog::default());
     cfg.core.chair_model = "fable".to_owned();
+    cfg.core.chair_effort = "medium".to_owned();
     cfg.core.judge_model = "fable".to_owned();
     cfg.core.decider = decider;
 }
@@ -126,7 +127,7 @@ async fn proofs(t: &Landed, question: &judgment::Definition) -> (usize, usize) {
 async fn a_change_a_decider_is_sure_is_risky_and_alters_a_rail_gets_deeper_review_and_security() {
     let t = chain_of(sure(2, 0.97)).await;
     let judging = t.land().await;
-    assert_eq!(judging.version.effort.as_deref(), Some("max"));
+    assert_eq!(judging.version.effort.as_deref(), Some("xhigh"));
     assert_eq!(
         judging.version.gates,
         vec![Gate::Reviewer, Gate::Security],
@@ -135,7 +136,7 @@ async fn a_change_a_decider_is_sure_is_risky_and_alters_a_rail_gets_deeper_revie
     assert_eq!(judging.version.judged.len(), 2);
     let said = decisions_of(&t).await;
     assert!(
-        said.iter().any(|s| s.starts_with("Review and QC run at max effort")),
+        said.iter().any(|s| s.starts_with("Review and QC run at xhigh effort")),
         "{said:?}"
     );
     assert!(
@@ -143,7 +144,7 @@ async fn a_change_a_decider_is_sure_is_risky_and_alters_a_rail_gets_deeper_revie
         "{said:?}"
     );
     let reviewer = reviewer_of(&t).await;
-    assert_eq!(reviewer.effort, "max", "the judge thinks as hard as the change asks");
+    assert_eq!(reviewer.effort, "xhigh", "the judge thinks as hard as the change asks");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -259,7 +260,7 @@ async fn the_security_gate_a_decider_added_scores_the_rails_question_by_what_it_
 async fn a_depth_that_would_not_raise_the_judges_changes_nothing_and_says_nothing() {
     let t = chain_of(sure(0, 0.02)).await;
     let judging = t.land().await;
-    assert_eq!(judging.version.effort, None, "high is below Claude Code's default");
+    assert_eq!(judging.version.effort, None, "the least depth is not above the usual effort");
     assert_eq!(judging.version.judged.len(), 2, "but it is still scored");
     let said = decisions_of(&t).await;
     assert!(said.iter().all(|s| !s.starts_with("Review and QC run")), "{said:?}");

@@ -289,7 +289,7 @@ and the README of each crate below it.
    since its attempts cannot be compared before one lands). Each attempt works in its own worktree and passes its gates
    as any chain, but its approved version contends instead of entering the queue (`round::approved_state`, the one rule
    `land::approve` reads). Once every attempt has a version contending or has finished (`round::standing`, read when a
-   version contends and at each landing sync), Remit starts a round judge on the strongest model in the first attempt's
+   version contends and at each landing sync), Remit starts a round judge on the judges' model in the first attempt's
    chain: it runs the check on each version's commit, reads them on the customer's side and calls `pick_attempt`, a `pick`
    decision on the picked chain. The pick enters its queue; every other version goes back not picked
    (`round::picked`, `ReturnReason::NotPicked`), each Chair hears why, and the judge's reasons stay on the round, where the
@@ -714,7 +714,7 @@ Judgement belongs to agents; the code keeps the rails.
   consumers, the QC runs it, fail before and pass after, and breaks the fix to see its tests catch it. How deep the review
   goes can be raised by a decider, never lowered (ADR-0118, point 4; `chains/src/review_depth.rs`): when `land` records a
   version, `gate.risk` (a score of three levels over its summary, its paths and the chain's goal) sets the effort its
-  change reviewers run at (`LandingVersion::effort`: `high`, `xhigh` or `max`, set only above the Chair's own effort and
+  change reviewers run at (`LandingVersion::effort`: `medium`, `high` or `xhigh` (ADR-0133), set only above the Chair's own effort and
   applied to every gate signer the Chair then hires, as the higher of it and the judge's usual), and `gate.touches_rail`,
   asked only where the paths named no rail, adds `security`. Each acts only at or above its act threshold; the gates'
   verdicts and the landing's ending score it. A gate judges the change, not the repository: it asks for what the goal wants and the change does
@@ -1575,7 +1575,7 @@ screen, open across navigation (`?assistant=1`); it is one conversation, the sam
 
 - **What it is.** A record and its one card (origin `assistant`), in no chain, made at the first start
   (`EnsureAssistant`), in a directory Remit owns (`<data>/assistant`), on `-assistant-model` at `-assistant-effort`
-  (default `fable`, `high`), which its card follows at every start (ADR-0070). Its card's stream is
+  (default `opus`, `medium`), which its card follows at every start (ADR-0070). Its card's stream is
   the conversation. Nothing of a chain holds it: no pause, no cap, no slot, no stall rail. It runs a turn only on a
   message: the owner's, an item put to it, or an agent's reply to a message it sent. The repetition rail holds its turns
   as any agent's (ADR-0092); across turns, an exchange with agents the owner is not in is its loop: every `-spin-turns`
@@ -1674,12 +1674,12 @@ of their own, `<data>/claude` (`agent_home::prepare`, run by the runtime as it s
 settings installed in the machine's config dir never reach them, and their transcripts are written under it. That login is the
 account `default`. A machine with none still runs: `default` is then a signed-out account, out of use like any other
 (its probe fails, failover), and agents run on the accounts the owner added; the owner can add more (below), and a session runs on one account at a time. `crates/provider` is the
-one catalog of the models agents run on: `fable`, `opus`, `sonnet` and `haiku`, each with its tier (`apex`, `frontier`,
+one catalog of the models agents run on: `fable`, `opus`, `sonnet` and `haiku`, cut at `-top-model` (default `opus`) so no card runs above it (ADR-0133), each with its tier (`apex`, `frontier`,
 `workhorse`, `fast`), and of the efforts a session thinks at (`low`, `medium`, `high`, `xhigh`, `max`; empty is Claude Code's
 default), which reach Claude Code as `--model` and `--effort`. A card stores its model id, its effort and the account it runs
-on. The Chair names a hire's model or effort only when it knows better (`models_help`). A model it leaves empty, and its agent leaves empty, is chosen by the decision layer from the brief (`hire.tier_can` for each tier below the strongest, the cheapest tier that acts wins; ADR-0118) when a decider is sure, else it is the Chair's own; the effort is the agent's, else the Chair's (`hire.effort` only informs). A card whose model was so chosen climbs a tier by code when its turn breaks or its gate sends its change back twice (`chains/src/climb.rs`); a hand-over, a workflow's hire and a duel's sides ask no decider. The Chair and the Assistant run on `fable` at `high` (`-chair-model`, `-chair-effort`,
+on. The Chair names a hire's model or effort only when it knows better (`models_help`). A model it leaves empty, and its agent leaves empty, is chosen by the decision layer from the brief (`hire.tier_can` for each tier below the strongest, the cheapest tier that acts wins; ADR-0118) when a decider is sure, else it is the Chair's own; the effort is the agent's, else the Chair's (`hire.effort` only informs). A card whose model was so chosen climbs a tier by code when its turn breaks or its gate sends its change back twice (`chains/src/climb.rs`); a hand-over, a workflow's hire and a duel's sides ask no decider. The Chair and the Assistant run on `opus` at `medium` (`-chair-model`, `-chair-effort`,
 `-assistant-model`, `-assistant-effort`), and every judge (the goal, duel and second judges, and a card that signs a
-gate) on the catalog's strongest model, `fable`, so none grades an author stronger than itself (ADR-0102). A flag that names a model or effort the catalog
+gate) on the capped catalog's strongest model at the Chair's effort, so none grades an author stronger than itself (ADR-0102, ADR-0133). A flag that names a model or effort the catalog
 does not know refuses to start the server. See ADR-0006, ADR-0007 and ADR-0070.
 
 - **Starting a session.** The core's one session port is `agent::Launcher`; `runtimelink::Launcher` implements it over
