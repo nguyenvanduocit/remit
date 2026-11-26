@@ -561,6 +561,7 @@ pub mod to_runtime {
     use super::{
         Ack, Email, PermissionAnswer, Prompt, SessionContext, SessionSpec, SignIn, Steered, TaskOutput, TranscriptChunk,
     };
+    use crate::app::SessionProcess;
 
     link::contract! {
         capability: "runtime.sessions";
@@ -571,6 +572,7 @@ pub mod to_runtime {
             /// Reads the end of what one background shell or Monitor of the session's process has written, with no turn
             /// of the agent's.
             session_task_output(session_id: String, task_id: String) -> TaskOutput, why = "reads what a background task wrote";
+            session_processes(session_id: String) -> Vec<SessionProcess>, why = "reads the OS process tree of a live session";
             session_context(session_id: String) -> SessionContext, why = "counts what fills a session's context";
         }
         changes {}

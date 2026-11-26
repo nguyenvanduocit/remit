@@ -68,6 +68,13 @@ impl<L: Link> to_runtime::Handler for Calls<L> {
         })
     }
 
+    async fn session_processes(&self, session_id: String) -> Result<Vec<wire::app::SessionProcess>, Failure> {
+        let Some(session) = self.r.session(&session_id).and_then(|s| s.live().ok()) else {
+            return Ok(Vec::new());
+        };
+        session.processes().await.map_err(failed)
+    }
+
     async fn session_context(&self, session_id: String) -> Result<model::SessionContext, Failure> {
         self.session(&session_id)?.context().await.map_err(failed)
     }

@@ -121,6 +121,10 @@ impl Handler for Api {
         returned("card_context", self.o.card_context(&card_id).await)
     }
 
+    async fn card_processes(&self, card_id: String) -> Result<wire::app::CardProcesses, Failure> {
+        returned("card_processes", self.o.card_processes(&card_id).await)
+    }
+
     async fn card_telemetry(&self, card_id: String) -> Result<CardTelemetry, Failure> {
         returned("card_telemetry", self.o.card_telemetry(&card_id).await)
     }

@@ -168,6 +168,8 @@ struct State {
     pending: HashMap<String, oneshot::Sender<Reply>>,
     /// Permission requests and hooks being answered, by request id: dropping a sender withdraws its request.
     asked: HashMap<String, oneshot::Sender<()>>,
+    /// The child PID is valid until the wait can reap it.
+    pid: Option<u32>,
     /// Stdout reached its end and the process was reaped.
     read_done: bool,
     /// How the process ended, once it has.
@@ -343,7 +345,10 @@ impl Conn {
             stdin: tokio::sync::Mutex::new(stdin),
             next_id: AtomicU64::new(0),
             stop: Notify::new(),
-            state: Mutex::new(State::default()),
+            state: Mutex::new(State {
+                pid: child.id(),
+                ..State::default()
+            }),
         });
         let (done_tx, done) = watch::channel(false);
         let (queue, received) = mpsc::unbounded_channel();
@@ -374,6 +379,11 @@ impl Conn {
             }
             Err(e) => Err(Error::Initialize(Box::new(e))),
         }
+    }
+
+    /// The PID of the OS child Remit started, valid until it begins to be reaped.
+    pub fn child_pid(&self) -> Option<u32> {
+        self.shared.state().pid
     }
 
     /// What the process answered the initialize request with.
@@ -579,6 +589,7 @@ async fn run<H: Handler>(
         () = &mut reading => false,
         () = shared.stop.notified() => true,
     };
+    shared.state().pid = None;
     let ended = if stopped {
         // Dropping the child, not yet reaped, kills its whole group; its stdout then reaches its end.
         drop(child);

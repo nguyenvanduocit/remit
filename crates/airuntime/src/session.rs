@@ -155,7 +155,7 @@ impl<L: Link> Session<L> {
 
     /// The launcher's session, once open. It does not wait for an open: the core sends nothing to a session before it
     /// has its opened entry, which follows `ready`.
-    fn live(&self) -> Result<Arc<dyn agent::Session>, String> {
+    pub(crate) fn live(&self) -> Result<Arc<dyn agent::Session>, String> {
         match &self.state().opened {
             None => Err("the session is still opening".to_owned()),
             Some(Opened { sess: Some(sess), .. }) => Ok(Arc::clone(sess)),

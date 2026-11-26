@@ -179,6 +179,10 @@ impl Handler for MentorApi {
         Err(denied("card_context"))
     }
 
+    async fn card_processes(&self, _card_id: String) -> Result<wire::app::CardProcesses, Failure> {
+        Err(denied("card_processes"))
+    }
+
     async fn card_telemetry(&self, _card_id: String) -> Result<CardTelemetry, Failure> {
         Err(denied("card_telemetry"))
     }

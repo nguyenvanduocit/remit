@@ -1139,6 +1139,23 @@ export type TaskOutput = {
   truncated: boolean;
 };
 
+/** A live OS process in a session, in parent-first order. CPU is a percentage of one logical core. */
+export type SessionProcess = {
+  pid: number;
+  depth: number;
+  command: string;
+  state: string;
+  cpuPercent: number | null;
+  residentBytes: number;
+  elapsedSeconds: number;
+};
+
+/** An OS snapshot for a card's session. Subagents share the root card's session. */
+export type CardProcesses = {
+  shared: boolean;
+  processes: SessionProcess[];
+};
+
 /** What one card's agent has in its context, for the owner to understand it. It is read when the owner asks. */
 export type CardContext = {
   cardId: string;

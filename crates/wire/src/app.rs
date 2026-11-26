@@ -1422,6 +1422,27 @@ pub struct TaskOutput {
     pub truncated: bool,
 }
 
+/// A live OS process in a session, in parent-first order. CPU is a percentage of one logical core.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionProcess {
+    pub pid: u32,
+    pub depth: u32,
+    pub command: String,
+    pub state: String,
+    pub cpu_percent: Option<f32>,
+    pub resident_bytes: u64,
+    pub elapsed_seconds: u64,
+}
+
+/// An OS snapshot for a card's session. Subagents share the root card's session.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CardProcesses {
+    pub shared: bool,
+    pub processes: Vec<SessionProcess>,
+}
+
 /// What one card's agent has in its context, for the owner to understand it. It is read when the owner asks.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2267,6 +2288,7 @@ link::contract! {
         /// With `before` (an event's id; 0: none), the newest of those older than it.
         card_events(card_id: String, before: i64) -> EventPage, why = "reads a card's events";
         card_context(card_id: String) -> CardContext, why = "reads what a card's session holds";
+        card_processes(card_id: String) -> CardProcesses, why = "reads the live OS processes of a card's session";
         card_telemetry(card_id: String) -> CardTelemetry, why = "reads what a card's agent did, as its sessions exported it";
         /// Live from the agent's process while the task runs, as kept at its end after.
         card_task_output(event_id: i64) -> TaskOutput, why = "reads what a background task of a card wrote";

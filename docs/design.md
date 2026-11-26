@@ -1914,6 +1914,8 @@ his words), and sees it on the Agents, Skills and Tools pages, under the Crew ta
   rendered plugin directory `<data>/library/<hash>/plugin`. Claude Code waits 300 s for the answer of a call to that
   server (`MCP_TIMEOUT_MS`, the entry's `timeout`) where it would give up after 60 s with the tool still running: the
   tools' own bounds stay under that (`open_repo` the longest, 180 s), so a tool that runs long still answers its agent.
+- **The Session tab shows live OS processes** (ADR-0134). The runtime samples its session's process tree and the owner
+  sees executable names, process states, CPU, resident memory and elapsed time. Subagents show the shared parent session.
 - **Every tool of Remit's MCP server says what it does.** A tool is added with its effect (`tools::Effect`: it reads, or it
   writes), which the server lists as the tool's `readOnlyHint`, so Claude Code runs readers side by side; the tools a loop
   calls every turn (`update_plan`, `hire_agent`, `accept_work`, `ask_chair`, `record_verdict` and the like) carry

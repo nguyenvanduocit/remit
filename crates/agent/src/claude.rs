@@ -25,6 +25,7 @@ use crate::agent::{BoxFuture, Exit, Handler, Launcher, SdkMessage, Session, Spec
 use crate::context::session_context;
 use crate::failure::{claude_failure, resets_at, time_of};
 use crate::options::{by_reference, mcp_config, options, repository_root};
+use crate::processes::ProcessSampler;
 use crate::refused::{ASKING_MODE, Refusals};
 use crate::subagents::Subagents;
 use crate::tasks::{OwnedTask, TaskLog, WorkflowLaunch};
@@ -186,6 +187,7 @@ impl ClaudeLauncher {
             attachments,
             mover,
             keeping: Mutex::new(None),
+            processes: Arc::default(),
         })
     }
 }
@@ -206,6 +208,7 @@ struct ClaudeSession {
     mover: Option<Mover>,
     /// The task keeping the token of the account the session last moved to fresh.
     keeping: Mutex<Option<tokio::task::AbortHandle>>,
+    processes: Arc<Mutex<ProcessSampler>>,
 }
 
 /// What a session needs to take another account's login: how to run Claude Code on that account's config dir and where
@@ -442,6 +445,16 @@ impl Session for ClaudeSession {
     /// Ends one task of the process; its notification follows, to `on_task`.
     fn stop_task(&self, task_id: String) -> BoxFuture<'_, Result<(), Error>> {
         Box::pin(async move { Ok(self.conn.stop_task(&task_id).await?) })
+    }
+
+    fn processes(&self) -> BoxFuture<'_, Result<Vec<wire::app::SessionProcess>, Error>> {
+        let conn = Arc::clone(&self.conn);
+        let sampler = Arc::clone(&self.processes);
+        Box::pin(async move {
+            tokio::task::spawn_blocking(move || crate::processes::sample(&conn, &sampler))
+                .await
+                .map_err(|e| Error::TurnFailed(format!("sample the session's processes: {e}")))?
+        })
     }
 
     /// Counts what fills the context now.

@@ -197,6 +197,14 @@ pub trait Session: Send + Sync {
             )))
         })
     }
+    /// Reads the current process tree from the host running the session.
+    fn processes(&self) -> BoxFuture<'_, Result<Vec<wire::app::SessionProcess>, Error>> {
+        Box::pin(async {
+            Err(Error::TurnFailed(
+                "this session cannot read its OS processes".to_owned(),
+            ))
+        })
+    }
     /// Counts what fills the session's context now, as Claude Code does for `/context`. A session that cannot ask its
     /// process refuses.
     fn context(&self) -> BoxFuture<'_, Result<model::SessionContext, Error>> {

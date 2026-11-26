@@ -145,3 +145,17 @@ export function contextOf(card: Card, opts: { counted?: 'now' | 'stored' | 'none
     contextError: counted === 'stored' ? 'the agent\'s process did not answer' : '',
   };
 }
+
+export function processesOf({ stopped = false, shared = false, cpu = 118.4 } = {}): import('../src/core/generated/types.generated').CardProcesses {
+  return {
+    shared,
+    processes: stopped ? [] : [
+      { pid: 48120, depth: 0, command: 'remit-jail', state: 'Sleeping', cpuPercent: 0, residentBytes: 6_291_456, elapsedSeconds: 1_042 },
+      { pid: 48133, depth: 1, command: 'claude', state: 'Sleeping', cpuPercent: 3.2, residentBytes: 314_572_800, elapsedSeconds: 1_041 },
+      { pid: 48301, depth: 2, command: 'bash', state: 'Sleeping', cpuPercent: 0, residentBytes: 3_145_728, elapsedSeconds: 29 },
+      { pid: 48302, depth: 3, command: 'cargo', state: 'Sleeping', cpuPercent: 0.5, residentBytes: 23_068_672, elapsedSeconds: 29 },
+      { pid: 48309, depth: 4, command: 'rustc', state: 'Running', cpuPercent: cpu, residentBytes: 627_048_448, elapsedSeconds: 12 },
+      { pid: 48310, depth: 4, command: 'a-very-long-test-binary-name-to-check-the-command-column', state: 'Running', cpuPercent: null, residentBytes: 4_194_304, elapsedSeconds: 1 },
+    ],
+  };
+}

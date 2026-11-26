@@ -17,6 +17,7 @@ pub mod blocks;
 pub mod cap_names;
 pub mod card_watch;
 pub mod cardcontext;
+mod cardprocesses;
 pub mod chain_core;
 pub mod change_item;
 pub mod changes;

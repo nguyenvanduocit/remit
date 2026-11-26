@@ -13,6 +13,7 @@ mod claude;
 mod context;
 mod failure;
 mod options;
+mod processes;
 mod refused;
 mod subagents;
 mod tasks;

@@ -4,6 +4,7 @@ import { fullTime } from '../ui';
 import type { Card } from '../core/generated/types.generated';
 import Markdown from './Markdown.vue';
 import KeyValues from './KeyValues.vue';
+import CardProcesses from './CardProcesses.vue';
 
 // How the agent runs: which Agent it is, the model, effort and mode Remit asks Claude Code for (what it runs, Claude Code
 // says in ContextDetails and CardTelemetry), the account it runs on, how many turns it took, its session and directory, and the brief it was hired with. How full
@@ -22,6 +23,7 @@ defineProps<{ card: Card }>();
     <dt>Created</dt><dd>{{ fullTime(card.createdAt) }}</dd>
     <template v-if="card.error"><dt>Error</dt><dd><span class="text-red-text">{{ card.error }}</span></dd></template>
   </KeyValues>
+  <CardProcesses :key="card.id" :card-id="card.id" class="mt-4" />
   <template v-if="card.brief"><h3 class="caps mt-4 mb-2">Brief</h3><Markdown type="quiet" :text="card.brief" /></template>
   <template v-if="card.deliverable"><h3 class="caps mt-4 mb-2">Deliverable</h3><Markdown type="quiet" :text="card.deliverable" /></template>
   <template v-if="card.criteria?.length">

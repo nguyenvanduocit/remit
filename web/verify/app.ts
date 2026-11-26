@@ -25,7 +25,7 @@ import { signedIn } from '../src/session';
 import { appRouter } from '../src/router';
 import { fakeServer, snapshotOf } from './fake';
 import { fakeDrafts } from './fakeDrafts';
-import { capabilities, contextOf, telemetryOf } from './contextSeed';
+import { capabilities, contextOf, telemetryOf, processesOf } from './contextSeed';
 import { agentStands, boardSeed, itemWait, needs, placed, stands } from './standingSeed';
 import { insightsSeed, outcomesSeed } from './outcomesSeed';
 import { judgmentsSeed } from './judgmentsSeed';
@@ -423,6 +423,7 @@ const fake = fakeServer({
     return {};
   },
   cardCancel: async (cardId) => (calls.push({ cardCancel: cardId }), {}),
+  cardProcesses: async () => processesOf(),
   cardTelemetry: async () => telemetryOf(),
   cardContext: async (cardId) => {
     const k = chains.flatMap(cardsOf).find((x) => x.id === cardId)!;

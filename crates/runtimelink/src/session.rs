@@ -578,6 +578,16 @@ impl<L: Link> agent::Session for Handle<L> {
         Box::pin(self.0.task_output(task_id))
     }
 
+    fn processes(&self) -> BoxFuture<'_, Result<Vec<wire::app::SessionProcess>, agent::Error>> {
+        Box::pin(async {
+            self.0
+                .l
+                .call(&self.0.rt, to_runtime::client::session_processes(self.0.id.clone()))
+                .await
+                .map_err(|e| e.agent("OS processes"))
+        })
+    }
+
     fn context(&self) -> BoxFuture<'_, Result<model::SessionContext, agent::Error>> {
         Box::pin(self.0.context())
     }
