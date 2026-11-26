@@ -13,7 +13,7 @@ use chains::apply::Records;
 use chains::domains::Recall;
 use chains::hire_input::{HireInput, Hiring};
 use chains::session::Run;
-use chains::step::{CardEdit, EndGoalCheckCmd};
+use chains::step::{CardEdit, EndGoalCheckCmd, JudgeEnd};
 use chains::{Domains, Result};
 use pipeline::actions::Actions;
 use pipeline::automation::DigestPeriod;
@@ -106,12 +106,12 @@ impl Domains for Orchestrator {
         self.crew.duel_reported(d).await
     }
 
-    async fn end_goal_check(&self, home: &str, judge: &str, why: &str, turn: bool, w: Records) -> Result<Chain> {
-        self.shipping.end_goal_check(home, judge, why, turn, w).await
+    async fn end_goal_check(&self, home: &str, judge: &str, why: &str, end: JudgeEnd, w: Records) -> Result<Chain> {
+        self.shipping.end_goal_check(home, judge, why, end, w).await
     }
 
-    async fn judge_turn_ended(&self, r: &Arc<Run>, judge: &Card, why: &str, edit: CardEdit) {
-        self.shipping.judge_turn_ended(r, judge, why, edit).await;
+    async fn judge_turn_ended(&self, r: &Arc<Run>, judge: &Card, why: &str, end: JudgeEnd, edit: CardEdit) {
+        self.shipping.judge_turn_ended(r, judge, why, end, edit).await;
     }
 
     async fn observe_goal_check(&self, c: EndGoalCheckCmd, ch: &Chain) -> EndGoalCheckCmd {

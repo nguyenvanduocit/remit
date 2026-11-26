@@ -966,8 +966,14 @@ impl Core {
                 let why = format!("the judge failed: {why}");
                 if let Err(err) = match self.domains() {
                     Ok(d) => {
-                        d.end_goal_check(&c.home, &c.id, &why, false, crate::apply::Records::default())
-                            .await
+                        d.end_goal_check(
+                            &c.home,
+                            &c.id,
+                            &why,
+                            crate::step::JudgeEnd::Stopped,
+                            crate::apply::Records::default(),
+                        )
+                        .await
                     }
                     Err(err) => Err(err),
                 } {

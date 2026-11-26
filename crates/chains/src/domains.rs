@@ -13,7 +13,7 @@ use crate::Result;
 use crate::apply::Records;
 use crate::hire_input::{HireInput, Hiring};
 use crate::session::Run;
-use crate::step::{CardEdit, EndGoalCheckCmd};
+use crate::step::{CardEdit, EndGoalCheckCmd, JudgeEnd};
 
 /// What a turn is given of its card's memory (ADR-0117): the note the agent reads ahead of the message, and the memories it
 /// names.
@@ -80,11 +80,11 @@ pub trait Domains: Send + Sync {
     /// One side of duel d reported: once both have, a judge is hired.
     async fn duel_reported(&self, d: &Duel) -> Result<()>;
 
-    /// Ends the goal check of chain home whose judge is judge, for why, stored with w; turn: its turn ended.
-    async fn end_goal_check(&self, home: &str, judge: &str, why: &str, turn: bool, w: Records) -> Result<Chain>;
+    /// Ends the goal check of chain home whose judge is judge, for why, stored with w; end: what of the judge's work ended.
+    async fn end_goal_check(&self, home: &str, judge: &str, why: &str, end: JudgeEnd, w: Records) -> Result<Chain>;
 
-    /// The goal judge's turn on run r ended without a verdict, for why, its card edited by edit.
-    async fn judge_turn_ended(&self, r: &Arc<Run>, judge: &Card, why: &str, edit: CardEdit);
+    /// The goal judge's turn on run r ended (end: on the check or on a question), for why, its card edited by edit.
+    async fn judge_turn_ended(&self, r: &Arc<Run>, judge: &Card, why: &str, end: JudgeEnd, edit: CardEdit);
 
     /// The end of a goal check c on chain ch with what its verdict says observed.
     async fn observe_goal_check(&self, c: EndGoalCheckCmd, ch: &Chain) -> EndGoalCheckCmd;

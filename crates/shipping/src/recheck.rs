@@ -36,9 +36,10 @@ The chain finished earlier and its change was merged since. An earlier check lef
 ";
 
 impl Shipping {
-    /// Hires a goal judge for a finished chain whose change was merged (ADR-0039), or marked live (ADR-0067), after the
-    /// verdict that closed it, when that verdict left something unverified that only the merge or the deploy could settle:
-    /// the judge looks again at what shows now, and its verdict is the chain's new one. A chain that waits on nothing of
+    /// Has the goal judge (`judge_of`: the one that gave the last check, when it can) look again at a finished chain whose
+    /// change was merged (ADR-0039), or marked live (ADR-0067), after the verdict that closed it, when that verdict left
+    /// something unverified that only the merge or the deploy could settle: the judge looks again at what shows now, and
+    /// its verdict is the chain's new one. A chain that waits on nothing of
     /// the kind, or is not finished, is moved on from.
     pub(crate) async fn hire_goal_recheck(&self, h: &SignalHire, v: &FactValue) -> Result<()> {
         let id = v.chain.clone();
@@ -59,15 +60,15 @@ impl Shipping {
         } else {
             ("the merge", RECHECK_BRIEF)
         };
-        let (judge, brief, _) = self.judge_of(&ch, &ch.summary, more).await?;
+        let (seat, brief, _) = self.judge_of(&ch, &ch.summary, more).await?;
         let cmd = HireRecheckCmd {
-            judge: judge.id.clone(),
-            name: judge.name.clone(),
+            judge: seat.card().id.clone(),
+            name: seat.card().name.clone(),
             after: after.to_owned(),
             brief,
             deadline: goal_deadline(&ch.id, h.now),
         };
-        let w = h.records(&format!("hired the goal judge to check again after {after}"), judge);
+        let w = seat.records(h, &format!("the goal judge to check again after {after}"));
         let r = self.apply(&ch.id, ChainCmd::HireRecheck(cmd), w).await;
         after_hire(r.as_ref().is_ok_and(|a| a.changed), r.map(|_| ()))
     }

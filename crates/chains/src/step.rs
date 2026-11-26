@@ -246,14 +246,27 @@ pub struct GoalVerdictCmd {
     pub approval_id: String,
 }
 
-/// Ends the goal check of `judge`: `why` says why when it gave no verdict, `turn` that its turn ended (rather than it
-/// stopped, failed or ran out of time). Observed under the chain's lock: the verdict claimed on the check and how many
-/// finishes the goal judge has refused, that one included.
+/// What of the goal judge's work came to an end.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum JudgeEnd {
+    /// Its turn on the check (its brief, or the word to go on) ended.
+    Turn,
+    /// Its turn on the owner's question to it ended: the judge of a chain checks each of its finishes (ADR-0132), so a
+    /// new check may wait in its queue behind the answer.
+    Question,
+    /// It stopped, failed or ran out of time, or no judge was hired.
+    #[default]
+    Stopped,
+}
+
+/// Ends the goal check of `judge`: `why` says why when it gave no verdict, `end` what of its work ended. Observed under
+/// the chain's lock: the verdict claimed on the check and how many finishes the goal judge has refused, that one
+/// included.
 #[derive(Debug, Clone, Default)]
 pub struct EndGoalCheckCmd {
     pub judge: String,
     pub why: String,
-    pub turn: bool,
+    pub end: JudgeEnd,
     pub verdict: Option<Approval>,
     pub refusals: i64,
     /// What of the chain is the owner's to settle (`owners_to_settle`).
@@ -849,14 +862,17 @@ fn end_goal_check_to(t: &mut Transition, c: &Chain, w: &WakeSubs, cmd: &EndGoalC
     if let Some(err) = &cmd.err {
         return Err(refuse(err.clone()));
     }
+    if cmd.end == JudgeEnd::Question && cmd.verdict.is_none() {
+        return Err(Halt::Unchanged); // the check's own turn comes next, on its brief
+    }
     let paused = *c.status() == ChainStatus::Paused;
-    if cmd.verdict.is_some() || !cmd.turn || !paused {
+    if cmd.verdict.is_some() || cmd.end != JudgeEnd::Turn || !paused {
         t.end_subs.push(goal_deadline_id(&c.id)); // the check is over: its deadline with it
     }
     let judged = model::by_agent(&cmd.judge);
     match &cmd.verdict {
         v if f.recheck => recheck_ended(t, v.as_ref(), cmd),
-        None if cmd.turn && paused => {
+        None if cmd.end == JudgeEnd::Turn && paused => {
             // The pause cut its turn: the check waits with the chain, and the judge goes on when it resumes.
             t.messages.push(Message {
                 to: cmd.judge.clone(),
@@ -1289,3 +1305,6 @@ fn wait_ended_note(w: &WakeSubs, reason: &str, now: Time) -> String {
     b.push(']');
     b
 }
+
+#[cfg(test)]
+mod tests;

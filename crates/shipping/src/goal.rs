@@ -39,7 +39,8 @@ use chains::prompts::goal_heading;
 use chains::schedule::verifying;
 use chains::session::Run;
 use chains::step::{
-    CardEdit, ChainCmd, EndGoalCheckCmd, FinishCmd, GoalVerdictCmd, HireJudgeCmd, RequestGoalCheckCmd, finish_why,
+    CardEdit, ChainCmd, EndGoalCheckCmd, FinishCmd, GoalVerdictCmd, HireJudgeCmd, JudgeEnd, RequestGoalCheckCmd,
+    finish_why,
 };
 use chains::tools::Tools;
 use chains::watch::{watch_refusal, watched_by};
@@ -544,6 +545,54 @@ pub(crate) fn key_results_error(fs: &[Finding], ids: &[&str]) -> Result<(), Stri
     Ok(())
 }
 
+/// What the judge of a chain's last goal check reads first when it is asked to check another finish of it.
+const ASKED_AGAIN: &str = "THIS IS A NEW GOAL CHECK. You checked this chain before, and its team has worked since and asks \
+    to finish again. What you remember of your last check tells you where to look; what you found then is a claim, \
+    yours to check again against the work as it is now: read what changed since the HEAD you judged, and judge this \
+    finish on what you see today. The records follow.\n\n";
+
+/// Who checks a finish, its card named for the check.
+pub(crate) enum JudgeSeat {
+    /// A new judge.
+    Hired(Card),
+    /// The judge of the chain's last goal check, in its own session.
+    AskedAgain(Card),
+}
+
+impl JudgeSeat {
+    pub(crate) fn card(&self) -> &Card {
+        match self {
+            Self::Hired(c) | Self::AskedAgain(c) => c,
+        }
+    }
+
+    /// What hire h of this seat stores, the outcome saying who checks: a new judge's card, or the new check's name on
+    /// the judge's own.
+    pub(crate) fn records(self, h: &SignalHire, who: &str) -> Records {
+        match self {
+            Self::Hired(c) => h.records(&format!("hired {who}"), c),
+            Self::AskedAgain(c) => {
+                let name = c.name.clone();
+                let edit = CardEdit::new(&c.id, move |k| name.clone_into(&mut k.name));
+                h.records_again(&format!("asked {who} again"), &c, edit)
+            }
+        }
+    }
+}
+
+/// The judge that checks a chain's next finish in its own session (ADR-0132), of the chain's cards: the goal judge
+/// that gave its last check, while that judge can resume (it holds a session and did not fail) and is still the one
+/// the check needs (the employee the key result names, on the model judges run on). None: a new judge is hired.
+pub(crate) fn judge_to_ask_again<'a>(cards: &'a [Card], employee: &str, model: &str) -> Option<&'a Card> {
+    cards
+        .iter()
+        .filter(|c| CardRole::of(c) == CardRole::Judge(JudgeKind::Goal))
+        .max_by_key(|c| c.created_at)
+        .filter(|c| {
+            !c.session_id.is_empty() && *c.status() != CardStatus::Failed && c.employee == employee && c.model == model
+        })
+}
+
 impl Shipping {
     /// Gives the goal judge card of chain ch reads of what a claim is about: the sources under ch's capabilities, the
     /// stored objective, and what ch's authoring capabilities wrote into Remit's store, so a finding is proven by reading.
@@ -697,8 +746,9 @@ impl Shipping {
         Ok(())
     }
 
-    /// Hires the goal judge, a fresh agent that has not seen the team's work, in the chain's directory, for the finish the
-    /// chain waits on. Its card, its brief, the firing and the subscription's progress are stored together.
+    /// Gives the finish the chain waits on to its goal judge (`judge_of`): the one that gave its last check, or a new one
+    /// in the chain's directory. The card or its edit, its brief, the firing and the subscription's progress are stored
+    /// together.
     pub(crate) async fn hire_goal_judge(&self, h: &SignalHire, v: &FactValue) -> Result<()> {
         let id = v.chain.clone();
         let ch = match self.store.read(move |r| r.chain(&id)).await {
@@ -712,27 +762,25 @@ impl Shipping {
         else {
             return Err(Error::NothingToDo); // finished, or its check has a judge already
         };
-        let (judge, brief, attempt) = self.judge_of(&ch, &f.summary, "").await?;
+        let (seat, brief, attempt) = self.judge_of(&ch, &f.summary, "").await?;
         let cmd = HireJudgeCmd {
-            judge: judge.id.clone(),
-            name: judge.name.clone(),
+            judge: seat.card().id.clone(),
+            name: seat.card().name.clone(),
             attempt,
             brief,
         };
         let r = self
-            .apply(
-                &ch.id,
-                ChainCmd::HireJudge(cmd),
-                h.records("hired the goal judge", judge),
-            )
+            .apply(&ch.id, ChainCmd::HireJudge(cmd), seat.records(h, "the goal judge"))
             .await;
         after_hire(r.as_ref().is_ok_and(|a| a.changed), r.map(|_| ()))
     }
 
-    /// The goal judge's card and brief for chain ch, whose result is summary: a fresh agent that has not seen the team's
-    /// work, in the chain's directory. more is added to the end of the brief. The number is the check's, counted by the
-    /// finishes the judge has refused.
-    pub(crate) async fn judge_of(&self, ch: &Chain, summary: &str, more: &str) -> Result<(Card, String, i64)> {
+    /// The goal judge's seat and brief for chain ch, whose result is summary. The judge that gave the chain's last check
+    /// checks this one too, in its own session, with the memory of what it checked (`judge_to_ask_again`, ADR-0132); the
+    /// chain's first check, or one that judge cannot take, goes to a new agent that has not seen the team's work, in the
+    /// chain's directory. more is added to the end of the brief. The number is the check's, counted by the finishes the
+    /// judge has refused.
+    pub(crate) async fn judge_of(&self, ch: &Chain, summary: &str, more: &str) -> Result<(JudgeSeat, String, i64)> {
         let (id, chair_id) = (ch.id.clone(), ch.chair_id.clone());
         let (chair, cards, approvals, prompts, landings) = self
             .store
@@ -747,7 +795,7 @@ impl Shipping {
             })
             .await?;
         let asked = owner_words_of(prompts, &cards);
-        let hired = self.hired_judge(ch).await?;
+        let employee = self.hired_judge(ch).await?.map(|e| e.id).unwrap_or_default();
         let judge_model = self.resolve_model(&self.cfg.judge_model)?;
         let reads = self.data_reads_of(ch).await?;
         let home = ch.id.clone();
@@ -761,27 +809,35 @@ impl Shipping {
             None => (KeyResult::default(), None),
         };
         let now = self.now();
-        let judge = {
-            let mut built = Card::judge_of(JudgeKind::Goal);
-            built.id = new_id("c_");
-            built.home = ch.id.clone();
-            built.agent = JUDGE_AGENT.to_owned();
-            built.employee = hired.map(|e| e.id).unwrap_or_default();
-            built.signs = Signs::Goal;
-            built.name = format!(
-                "{GOAL_JUDGE_NAME} · check {}",
-                goal_approvals(&approvals).len().saturating_add(1)
-            );
-            built.why = GOAL_JUDGE_WHY.to_owned();
-            built.brief = "Check the team's result against the goal yourself, then record your verdict.".to_owned();
-            built.model = judge_model;
-            built.mode = self.cfg.mode.clone();
-            built.cwd = ch.workdir.clone();
-            built.plan = Vec::new();
-            built.created_at = now;
-            built.updated_at = now;
-            built.set_status(CardStatus::Starting, now);
-            built
+        let name = format!(
+            "{GOAL_JUDGE_NAME} · check {}",
+            goal_approvals(&approvals).len().saturating_add(1)
+        );
+        let seat = match judge_to_ask_again(&cards, &employee, &judge_model) {
+            Some(last) => {
+                let mut card = last.clone();
+                card.name = name;
+                JudgeSeat::AskedAgain(card)
+            }
+            None => {
+                let mut built = Card::judge_of(JudgeKind::Goal);
+                built.id = new_id("c_");
+                built.home = ch.id.clone();
+                built.agent = JUDGE_AGENT.to_owned();
+                built.employee = employee;
+                built.signs = Signs::Goal;
+                built.name = name;
+                built.why = GOAL_JUDGE_WHY.to_owned();
+                built.brief = "Check the team's result against the goal yourself, then record your verdict.".to_owned();
+                built.model = judge_model;
+                built.mode = self.cfg.mode.clone();
+                built.cwd = ch.workdir.clone();
+                built.plan = Vec::new();
+                built.created_at = now;
+                built.updated_at = now;
+                built.set_status(CardStatus::Starting, now);
+                JudgeSeat::Hired(built)
+            }
         };
         let check_words = chains::goal::check_words(kr.check.as_ref());
         let brief = judge_prompt(&JudgeBrief {
@@ -800,9 +856,13 @@ impl Shipping {
             check: kr.check.as_ref(),
             check_words: &check_words,
         });
+        let again = match seat {
+            JudgeSeat::AskedAgain(_) => ASKED_AGAIN,
+            JudgeSeat::Hired(_) => "",
+        };
         Ok((
-            judge,
-            format!("{brief}{more}"),
+            seat,
+            format!("{again}{brief}{more}"),
             goal_refusals(&approvals).saturating_add(1),
         ))
     }
@@ -940,14 +1000,14 @@ impl Shipping {
     }
 
     /// Ends the check of chain home that judge (empty when none was hired) is the judge of, when it is the chain's: with the
-    /// verdict claimed on it, the chain acts on it; without one the chain finishes without the check, saying why. turn says
-    /// the judge's turn ended (rather than the judge stopping, failing or running out of time): a turn the chain's pause
-    /// cut leaves the check pending. w goes with it. It returns the chain as it is after.
-    pub async fn end_goal_check(&self, home: &str, judge: &str, why: &str, turn: bool, w: Records) -> Result<Chain> {
+    /// verdict claimed on it, the chain acts on it; without one the chain finishes without the check, saying why. end says
+    /// what of the judge's work ended: a turn the chain's pause cut, or a turn on the owner's question, leaves the check
+    /// pending. w goes with it. It returns the chain as it is after.
+    pub async fn end_goal_check(&self, home: &str, judge: &str, why: &str, end: JudgeEnd, w: Records) -> Result<Chain> {
         let cmd = EndGoalCheckCmd {
             judge: judge.to_owned(),
             why: why.to_owned(),
-            turn,
+            end,
             ..EndGoalCheckCmd::default()
         };
         let a = self.apply(home, ChainCmd::EndGoalCheck(cmd), w.clone()).await?;
@@ -981,9 +1041,10 @@ impl Shipping {
         c
     }
 
-    /// Where the goal judge's turn ends, with edit to its card: its verdict, or the lack of one, ends the check. Once its
-    /// check is over, its session is too; a judge whose turn the chain's pause cut goes on when it resumes.
-    pub async fn judge_turn_ended(&self, r: &Arc<Run>, judge: &Card, why: &str, edit: CardEdit) {
+    /// Where the goal judge's turn ends (end: on the check, or on the owner's question), with edit to its card: its verdict,
+    /// or the lack of one on the check, ends the check. Once its check is over, its session is too; a judge whose turn the
+    /// chain's pause cut goes on when it resumes, and one that answered a question goes on to the check waiting for it.
+    pub async fn judge_turn_ended(&self, r: &Arc<Run>, judge: &Card, why: &str, end: JudgeEnd, edit: CardEdit) {
         let w = Records {
             cards: vec![edit],
             ..Records::default()
@@ -994,7 +1055,7 @@ impl Shipping {
             }
             return;
         }
-        let ch = match self.end_goal_check(&judge.home, &judge.id, why, true, w).await {
+        let ch = match self.end_goal_check(&judge.home, &judge.id, why, end, w).await {
             Ok(ch) => ch,
             Err(err) => {
                 tracing::error!(home = %judge.home, card = %judge.id, %err, "goal check's end");
@@ -1037,3 +1098,6 @@ impl Shipping {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

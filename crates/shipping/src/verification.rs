@@ -347,7 +347,7 @@ struct Judged<'a> {
 
 /// Who gave verdicts as role, newest first. A reviewer or QC is one judge per repository, its earlier verdicts the rounds
 /// of the same review; two reviewers working side by side are two judges. The goal checks are one judge, the rounds of one
-/// question asked again at every finish, though each is a fresh agent.
+/// question asked again at every finish, though a new card takes over when the last cannot (ADR-0132).
 fn judges_of<'a>(approvals: &[&'a Approval], role: VerdictRole) -> Vec<Judged<'a>> {
     let mut keys: Vec<String> = Vec::new();
     let mut groups: HashMap<String, Vec<&'a Approval>> = HashMap::new();

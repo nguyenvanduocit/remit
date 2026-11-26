@@ -22,7 +22,7 @@ use crate::ingest::Write;
 use crate::outbox::{new_message, sent_by};
 use crate::plan::{plan_open, plan_text};
 use crate::session::Run;
-use crate::step::CardEdit;
+use crate::step::{CardEdit, JudgeEnd};
 use crate::stream::tail_line;
 use crate::{Error, Result};
 
@@ -171,8 +171,15 @@ impl Core {
                 } else {
                     format!("the judge ended its turn without a verdict ({})", end.stop)
                 };
+                // Remit sends the check's messages; the owner's (or the Assistant's for him) are questions to the judge
+                let end = if by.for_owner() {
+                    JudgeEnd::Question
+                } else {
+                    JudgeEnd::Turn
+                };
                 if let Ok(d) = self.domains() {
-                    d.judge_turn_ended(r, &card, &why, CardEdit::new(&card.id, idle)).await;
+                    d.judge_turn_ended(r, &card, &why, end, CardEdit::new(&card.id, idle))
+                        .await;
                 }
                 return;
             }

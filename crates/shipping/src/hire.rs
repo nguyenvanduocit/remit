@@ -11,6 +11,7 @@ use chains::admit::{Needs, fits};
 use chains::apply::Records;
 use chains::fact::{FactValue, fact_value_of};
 use chains::goal::GOAL_CHECK_LIMIT;
+use chains::step::{CardEdit, JudgeEnd};
 use chains::{Error, Result};
 use pipeline::automation::{ROLE_GOAL_JUDGE, ROLE_GOAL_RECHECK};
 use pipeline::processing::Delivery;
@@ -40,6 +41,17 @@ impl SignalHire {
         let fired = self.d.done(outcome, &hired.home, &hired.id);
         Records {
             created: vec![hired],
+            fired: Some(fired),
+            ..Records::default()
+        }
+    }
+
+    /// What a step that gives the work to a card it already has stores: edit to that card, and the firing with its
+    /// outcome and the card, with the subscription's progress.
+    pub fn records_again(&self, outcome: &str, card: &Card, edit: CardEdit) -> Records {
+        let fired = self.d.done(outcome, &card.home, &card.id);
+        Records {
+            cards: vec![edit],
             fired: Some(fired),
             ..Records::default()
         }
@@ -115,7 +127,8 @@ impl Shipping {
         let minutes = GOAL_CHECK_LIMIT.0 / model::Duration::MINUTE.0;
         let why = if finishing.judge.is_empty() {
             let why = format!("no judge was hired within {minutes} minutes");
-            self.end_goal_check(&ch.id, "", &why, false, Records::default()).await?;
+            self.end_goal_check(&ch.id, "", &why, JudgeEnd::Stopped, Records::default())
+                .await?;
             why
         } else {
             let judge = finishing.judge.clone();

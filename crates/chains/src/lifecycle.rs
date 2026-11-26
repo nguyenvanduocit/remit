@@ -18,7 +18,7 @@ use crate::prompts::opening_title;
 use crate::request::Service;
 use crate::request::{Done, Request};
 use crate::schedule::at_work;
-use crate::step::{CardEdit, ChainCmd, Decided, FinishCmd, PauseCmd, ResumeCmd, finish_why, queued};
+use crate::step::{CardEdit, ChainCmd, Decided, FinishCmd, JudgeEnd, PauseCmd, ResumeCmd, finish_why, queued};
 use crate::{Error, Result};
 
 /// A chain to queue: what it is for, its kind (ADR-0113), and who asked for it. The fields other groups queue chains with (proposed and replay chains) come with their groups.
@@ -200,7 +200,7 @@ impl Core {
             CardRole::Assistant => return self.start_over(&c, &by).await,
             CardRole::Judge(_) => {
                 return Err(Error::refused(
-                    "a judge is not restarted: the owner can still ask the one that answered, and a new finish is checked by a new judge",
+                    "a judge is not restarted: the owner can still ask the one that answered, and it checks the chain's next finish",
                 ));
             }
             CardRole::Chair => true,
@@ -394,7 +394,13 @@ impl Core {
             CardRole::Judge(JudgeKind::Goal) => {
                 let why = format!("the judge was stopped before it gave a verdict: {why}");
                 self.domains()?
-                    .end_goal_check(&c.home, card_id, &why, false, crate::apply::Records::default())
+                    .end_goal_check(
+                        &c.home,
+                        card_id,
+                        &why,
+                        JudgeEnd::Stopped,
+                        crate::apply::Records::default(),
+                    )
                     .await?;
             }
             CardRole::Judge(JudgeKind::Duel) => {

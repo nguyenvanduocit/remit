@@ -729,12 +729,16 @@ Judgement belongs to agents; the code keeps the rails.
   customer's side of it is shown; one that cannot show it yet is `unverified` (`deploy`, `watch`), and only a `write` or `deploy` of a change the chain still has to land or put live lets the chain end with it (ADR-0067).
 - **Goal judge, on the result.** `finish_chain` first needs every report accepted, the Chair's plan closed and no landing of
   the chain on its way (`judging`, `ready` or `checking`: a chain owns its change until it lands). Then
-  Remit starts the goal judge: a fresh agent in the chain's directory (origin `judge`, judge kind `goal`, agent `judge`), its brief from Remit. It is not on the Chair's team (`Card.OnTeam`:
+  Remit gives the check to the goal judge: for the chain's first check a fresh agent in the chain's directory (origin `judge`, judge kind `goal`, agent `judge`), its brief from Remit. It is not on the Chair's team (`Card.OnTeam`:
   hired or seeded): the Chair does not see it in `list_agents` and cannot route to it, hire on its output, accept, read
   or stop it, so the check cannot be ended from the team it judges. The tree lists it below the team, among the cards
   Remit started, with no line to the Chair, its line its verdict (Goal met, Goal not met); its drawer shows why it is here and, under its stream, its
-  judgement as the Verification tab reads it (the round that card gave), each finding with its evidence. Each finish is
-  checked by a new judge, which reads a record rather than inheriting a memory: its brief holds the goal and what the
+  judgement as the Verification tab reads it (the rounds that card gave), each finding with its evidence. Each later
+  finish, and the second look after a merge or a live mark, goes to the judge of the last check in its own session,
+  renamed to the new check, while it can resume and is still the judge the check needs (it holds a session, did not fail,
+  is the employee the key result names and runs on the judges' model; `judge_to_ask_again`, ADR-0132); otherwise a new
+  judge is hired. Its memory says where to look and the record stays the authority: its brief opens saying what it found
+  before is a claim to check again, and holds the goal and what the
   owner asked after it (his messages to the chain's agents, the Chair's word that one is dealt with being a claim to
   check), the chain's landings, the Chair's summary, and the earlier goal checks. The last is
   given in full, its items the list the new check works from (the same words, a new one only with a reason, each
@@ -744,7 +748,8 @@ Judgement belongs to agents; the code keeps the rails.
   finished chain stays finished; only a message to the Chair or the team reopens one), the session of a judge that is
   over resumes with its own memory of its check, and a message that has to open a session waits for a provider
   like every start. A judge's verdict counts only while a check waits for it, so a resumed judge cannot give it again,
-  and a judge is never restarted. The Chair waits on its team, not on a judge: while the goal
+  and a judge is never restarted. A turn on the owner's question that ends without a verdict leaves a check waiting on
+  that judge pending (`JudgeEnd::Question`): its next turn is the check's brief. The Chair waits on its team, not on a judge: while the goal
   judge works, the Chair's line says it waits for the goal check. The Chair's summary waits on the chain (`finishing`),
   stored with the judge's card and brief, so a restart loses nothing: the judge's session resumes. The judge cannot
   edit, hire, ask the Chair or finish; it reads the worktrees, runs the tests or queries the data to check the summary's
