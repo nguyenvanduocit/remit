@@ -36,6 +36,9 @@ const COMPACT_AT_400K: u32 = 400_000;
 /// `RESTORE_TIMEOUT`), `record_verdict` 120 s (`shipping/src/gate.rs`). A tool given a longer bound raises this with it.
 const MCP_TIMEOUT_MS: u32 = 300_000;
 
+/// Give Claude Code a removal target it can check before Bash runs.
+const BASH_OUTPUTS: &str = "For generated test evidence, write each run to a fresh output directory so reruns need no cleanup. When removing files is part of the task, use a literal path or require a nonempty directory variable before expanding it, for example `rm -f -- \"${output_dir:?}\"/*.png`. Apply the same rule to a safe retry if Claude Code flags a possibly empty removal path.";
+
 /// What a Claude Code process for spec is started with, but its command, its session and its MCP servers. A session
 /// reads the repository's settings and CLAUDE.md and nothing of the user's Claude Code configuration, and takes only the
 /// MCP servers it is given, so the user's skills, agents, plugins and servers never reach it; the skills it is given are
@@ -70,7 +73,11 @@ pub(crate) fn options(spec: &Spec, root: &Path) -> claudecode::Options {
         disallowed_tools: spec.deny_tools.iter().cloned().chain(denied_agents(spec)).collect(),
         plugins: spec.plugins.clone(),
         thinking_display: "summarized".into(),
-        append_system_prompt: spec.system_append.clone(),
+        append_system_prompt: if spec.system_append.is_empty() {
+            BASH_OUTPUTS.to_owned()
+        } else {
+            format!("{}\n\n{BASH_OUTPUTS}", spec.system_append)
+        },
         skills: Some(spec.skills.clone()),
         agents: agent_definitions(&spec.agents),
         forward_subagent_text: true,
@@ -82,7 +89,7 @@ pub(crate) fn options(spec: &Spec, root: &Path) -> claudecode::Options {
             .collect(),
         // Claude Code records a conversation's system prompt when it first renders it and reuses the record on resume,
         // so a brief edited since would never arrive: rendered afresh every request, it does.
-        system_prompt_snapshot: (!spec.system_append.is_empty()).then_some(false),
+        system_prompt_snapshot: Some(false),
         ..claudecode::Options::default()
     }
 }
