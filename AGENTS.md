@@ -340,7 +340,7 @@ each hit.
 - **Ship**: A verified change is pushed to `origin/master`, unasked; every
   push is a GitHub release (`.github/workflows/release.yml` tests it and publishes it as `<yyyymmdd>-<short sha>`).
   Pushing is the last step: never wait on CI, and never deploy to another machine.
-- **Update the running app after every code change.** On this Mac, the owner uses the launchd job
+- **Build and restart the running server after every repository change.** On this Mac, the owner uses the launchd job
   `gui/$(id -u)/remit` on port 4320. Build the verified commit with `gmake build` in a clean checkout, keep the
   previous binary and a pre-upgrade database snapshot. Stage the binary with the launchd job's signing identifier
   (`codesign --force --sign - --identifier remit` for this ad hoc-signed install), verify the signature and atomically
