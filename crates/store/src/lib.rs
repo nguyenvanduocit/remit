@@ -64,6 +64,7 @@ pub use memory_daemon::{DaemonMemory, read_memory_daemon};
 pub use restore::{Restored, restore};
 pub use signal::{FiringFilter, SignalRow};
 pub use snapshot::{Snapshot, schema_version, snapshot_before_update, snapshot_dir, snapshots};
+pub use ping::{PingProgress, PingStage};
 pub use source::SourceValue;
 pub use store::{Error, Reader, Result, Store, Tx};
 pub use telemetry::{Telemetry, TelemetryError};

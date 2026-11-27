@@ -244,9 +244,21 @@ impl Store {
         T: Send + 'static,
         E: From<Error> + Send + 'static,
     {
+        self.read_once_running(|| {}, f).await
+    }
+
+    /// `read`, calling running on its blocking thread before it waits for a reader: what tells a read that waited for a
+    /// thread from one that waited for a reader.
+    pub(crate) async fn read_once_running<T, E, F>(&self, running: impl FnOnce() + Send + 'static, f: F) -> Result<T, E>
+    where
+        F: FnOnce(&Reader<'_>) -> Result<T, E> + Send + 'static,
+        T: Send + 'static,
+        E: From<Error> + Send + 'static,
+    {
         let pool = Arc::clone(&self.readers);
         let unreadable = Arc::clone(&self.unreadable);
         tokio::task::spawn_blocking(move || {
+            running();
             let mut c = pool.take()?;
             // A panic in f is answered as an error and the connection, its read rolled back, goes back to the pool: lost,
             // the pool would shrink to nothing and every read wait for good.

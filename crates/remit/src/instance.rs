@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use model::Time;
-use store::Store;
+use store::{PingProgress, PingStage, Store};
 
 use crate::health::{Build, PING_FOR, verdict};
 use crate::ports::RuntimeLink;
@@ -44,16 +44,27 @@ impl orch::Instance for ThisServer {
 
 /// Whether the database answers within `PING_FOR`, as `/healthz` asks it.
 pub async fn db_answers(store: &Store) -> bool {
-    match tokio::time::timeout(PING_FOR, store.ping()).await {
+    let progress = Arc::new(PingProgress::default());
+    match tokio::time::timeout(PING_FOR, store.ping(Arc::clone(&progress))).await {
         Ok(Ok(())) => true,
         Ok(Err(err)) => {
             tracing::error!(%err, "healthz: database does not answer");
             false
         }
         Err(_) => {
-            tracing::error!("healthz: database does not answer in time");
+            // `err` is what the issue a chain starts from carries: the stage the ping stood at names what to look at.
+            tracing::error!(err = waited_on(progress.stage()), "healthz: database does not answer in time");
             false
         }
+    }
+}
+
+/// What a ping that ran out of time waited on, by the stage it reached.
+fn waited_on(stage: PingStage) -> &'static str {
+    match stage {
+        PingStage::Queued => "no blocking thread ran the ping: the host was slow",
+        PingStage::WaitingForReader => "no reader was free: the ping waited behind other reads",
+        PingStage::Querying => "SELECT 1 did not return on its reader: SQLite or the host was slow",
     }
 }
 
@@ -69,5 +80,56 @@ pub fn release_of(exe: &Path, releases: &Path) -> String {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default(),
         _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Barrier};
+
+    use store::{Error, Store};
+    use tracing_subscriber::layer::SubscriberExt as _;
+
+    use super::db_answers;
+
+    // A probe that times out while every reader is held says so in the issue the next investigation starts from.
+    #[tokio::test]
+    async fn a_ping_that_waited_behind_held_readers_names_them_in_its_issue() {
+        let (issues, mut issued) = crate::errors::layer();
+        let _log = tracing::subscriber::set_default(tracing_subscriber::registry().with(issues));
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(Store::open(dir.path().join("remit.db")).unwrap());
+        let n = std::thread::available_parallelism().map_or(1, usize::from);
+        let (taken, release) = (Arc::new(Barrier::new(n + 1)), Arc::new(Barrier::new(n + 1)));
+        let held: Vec<_> = (0..n)
+            .map(|_| {
+                let (store, taken, release) = (Arc::clone(&store), Arc::clone(&taken), Arc::clone(&release));
+                tokio::spawn(async move {
+                    store
+                        .read(move |_| {
+                            taken.wait();
+                            release.wait();
+                            Ok::<_, Error>(())
+                        })
+                        .await
+                })
+            })
+            .collect();
+        let t = Arc::clone(&taken);
+        tokio::task::spawn_blocking(move || t.wait()).await.unwrap();
+
+        let answered = db_answers(&store).await;
+        // released before any assert, so a failing one does not leave the readers waiting for good
+        let r = Arc::clone(&release);
+        tokio::task::spawn_blocking(move || r.wait()).await.unwrap();
+        for h in held {
+            h.await.unwrap().unwrap();
+        }
+
+        assert!(!answered);
+        let issue = issued.try_recv().unwrap();
+        assert_eq!(issue.message, "healthz: database does not answer in time");
+        assert_eq!(issue.error, "no reader was free: the ping waited behind other reads");
+        assert!(db_answers(&store).await);
     }
 }
