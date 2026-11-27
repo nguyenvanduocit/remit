@@ -14,6 +14,7 @@ use serde::Deserialize;
 
 use crate::Shipping;
 use crate::checkpoint::{Restore, measured_from, pick, unfit_folder};
+use crate::folder_repo::FolderRepo;
 use crate::gate::RAILS_FILE;
 use crate::land::{Found, change_gates, last_element, path_rules};
 use crate::shadow::{Restored, Shadow};
@@ -171,6 +172,28 @@ impl Shipping {
         self.judged_version(chain, rw, s, found).await
     }
 
+    /// Commits landing l, a version of a folder worked in place its gates just approved, on the branch of the folder's own
+    /// Git repository (ADR-0139), and records the commit on l. A folder that is not the top of a Git repository has no
+    /// history to write: its approval is the landing, and l keeps no commit. A landing with a queue is left as it is.
+    pub(crate) async fn commit_in_folder(&self, chain: &Chain, l: &mut Landing) -> Result<(), String> {
+        if l.queue.is_some() || l.state != LandingState::Landed {
+            return Ok(());
+        }
+        let rw = chain
+            .repos
+            .iter()
+            .find(|rw| rw.repo == l.repo && rw.in_place())
+            .ok_or_else(|| format!("the chain no longer holds {} in place", l.repo))?;
+        let Some(repo) = FolderRepo::at(rw.dir()).await else {
+            return Ok(());
+        };
+        l.commit = repo
+            .commit(l, &self.shadow_of(rw))
+            .await
+            .map_err(|e| format!("committing version {} in {}: {e}", l.version.number, l.repo))?;
+        Ok(())
+    }
+
     /// The command that prints the change landing l is, for the reviewers the Chair hires to read it, when l is a version of
     /// a folder worked in place: such a folder has no branch to diff, so the Chair is told the checkpoints to diff.
     pub(crate) fn read_command(&self, chain: &Chain, l: &Landing) -> Option<String> {
@@ -323,13 +346,22 @@ pub(crate) fn landed_in_place(chain: &Chain, l: &Landing, rec: &mut Records) -> 
         .push(fact_write(keys::chain_landed(), &v, by_remit(""), &chain.id)?);
     rec.decisions.push(Decided {
         kind: DecisionKind::Landing,
-        text: format!(
-            "Landed {} version {} in place at {}: {}.",
-            last_element(&l.repo),
-            l.version.number,
-            short(&l.version.from),
-            l.version.title
-        ),
+        text: match &l.commit {
+            Some(commit) => format!(
+                "Committed {} version {} on the folder's branch as {}: {}.",
+                last_element(&l.repo),
+                l.version.number,
+                short(commit),
+                l.version.title
+            ),
+            None => format!(
+                "Approved {} version {} at checkpoint {}: {}.",
+                last_element(&l.repo),
+                l.version.number,
+                short(&l.version.from),
+                l.version.title
+            ),
+        },
         why: l.version.description.clone(),
         card_id: chain.chair_id.clone(),
         by: by_remit(""),

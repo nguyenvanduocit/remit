@@ -148,6 +148,11 @@ impl Shipping {
                 continue;
             }
             ready.updated_at = now;
+            if let Err(err) = self.commit_in_folder(&chain, &mut ready).await {
+                // it stays judging: the next look commits it again
+                tracing::warn!(landing = %l.id, %err, "a landing in place was not committed");
+                continue;
+            }
             let mut rec = Records::default();
             if let Err(err) = landed_in_place(&chain, &ready, &mut rec) {
                 tracing::debug!(landing = %l.id, %err, "a landing in place was not recorded as landed");

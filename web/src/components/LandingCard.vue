@@ -16,7 +16,7 @@ defineProps<{ landing: Landing; where: string; to: RouteLocationRaw; on: boolean
 <template>
   <ItemCard :to="to" :on="on" :title="landing.version.title" :data-landing="landing.id">
     <template v-if="landing.reverts" #chip><IconChip icon="repeat" class="bg-red-tint text-red" /></template>
-    <template #badge><LandingBadge :state="landing.state" /></template>
+    <template #badge><LandingBadge :landing="landing" /></template>
     <template #meta>
       <span v-if="landing.reverts" class="font-medium text-text2">Revert</span>
       <span class="min-w-0 truncate" data-where>{{ where }}</span>

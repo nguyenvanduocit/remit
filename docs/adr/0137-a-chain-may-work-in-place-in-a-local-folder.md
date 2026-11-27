@@ -1,6 +1,6 @@
 # 0137. A chain may work in place in a local folder
 
-Status: accepted, 2026-11-27. Source: the owner's request of 2026-11-27 ("Remit forces git and worktrees, which is hard;
+Status: accepted, 2026-11-27; a landing in place commits on the folder's branch by 0139. Source: the owner's request of 2026-11-27 ("Remit forces git and worktrees, which is hard;
 design a mode that runs on the local file system, as Paseo does"). Narrows ADR-0038 and ADR-0114 for a folder opened in
 place; clone work is unchanged.
 

@@ -1,6 +1,7 @@
 //! A chain's work in place in a folder through the whole application (ADR-0137): the Chair opens the folder, the agents
-//! change it, `land` records the version between two checkpoints, its gate's verdict lands it with no queue, and a
-//! checkpoint is restored unless that would overwrite the owner's own edit. No forge, clone or worktree is involved.
+//! change it, `land` records the version between two checkpoints, its gate's verdict lands it with no queue (as a commit
+//! on the folder's own branch when it is a Git repository, ADR-0139), and a checkpoint is restored unless that would
+//! overwrite the owner's own edit. No forge, clone or worktree is involved.
 
 use std::path::Path;
 use std::time::Duration;
@@ -11,6 +12,7 @@ use shipping::folder::RestoreInput;
 use shipping::gate::VerdictInput;
 use shipping::land::LandInput;
 
+use crate::shipping_land::sh;
 use crate::tests::{Rig, rig_of};
 
 struct Notes {
@@ -152,6 +154,7 @@ async fn a_folder_worked_in_place_lands_on_its_gates_and_is_restored_to_a_checkp
         .await;
     assert!(landed.landed_at.is_some());
     assert_eq!(landed.version.verdicts.len(), 1, "the review that landed it is named");
+    assert!(landed.commit.is_none(), "a folder that is not Git is committed nowhere");
 
     // the owner edits a file the restore would overwrite: it refuses, names the file and writes nothing
     std::fs::write(t.folder.join("plan.txt"), "mine\n").unwrap();
@@ -172,6 +175,56 @@ async fn a_folder_worked_in_place_lands_on_its_gates_and_is_restored_to_a_checkp
         t.folder.join("noise.log").exists(),
         "an ignored file is not Remit's to touch"
     );
+}
+
+// In a folder that is a Git repository, an approved version is one commit on the branch the folder is on: exactly its
+// paths as the checkpoint holds them, the Chair's message, no hook run, and the user's own staged edit of another file
+// left staged and unchanged.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_version_of_a_git_folder_lands_as_a_commit_on_its_branch() {
+    let t = notes().await;
+    let f = t.folder.as_path();
+    std::fs::write(f.join("old.txt"), "old\n").unwrap();
+    std::fs::write(f.join("todo.md"), "a\n").unwrap();
+    sh(f, &["init", "-q", "-b", "main"]);
+    sh(f, &["config", "user.name", "Owner"]);
+    sh(f, &["config", "user.email", "owner@example.com"]);
+    sh(f, &["add", "-A"]);
+    sh(f, &["commit", "-q", "-m", "start"]);
+    let hook = f.join(".git/hooks/post-commit");
+    std::fs::write(&hook, format!("#!/bin/sh\ntouch {}\n", f.join("hook-ran").display())).unwrap();
+    std::fs::set_permissions(&hook, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    // the user's own edit, staged before the chain opens the folder: not the chain's change
+    std::fs::write(f.join("todo.md"), "a\nb\n").unwrap();
+    sh(f, &["add", "todo.md"]);
+    let start = sh(f, &["rev-parse", "HEAD"]);
+
+    t.r.o.shipping.open_repo(&t.chair, &s(f)).await.unwrap();
+    std::fs::write(f.join("plan.txt"), "two\n").unwrap();
+    std::fs::write(f.join("extra.txt"), "new\n").unwrap();
+    std::fs::remove_file(f.join("old.txt")).unwrap();
+    t.r.o.shipping.land(&t.chair, Notes::landing_input()).await.unwrap();
+    let judging = t.landing(|l| l.state == LandingState::Judging).await;
+    t.approve().await;
+    let landed = t
+        .landing(|l| l.id == judging.id && l.state == LandingState::Landed)
+        .await;
+
+    let head = sh(f, &["rev-parse", "HEAD"]);
+    assert_eq!(landed.commit.as_deref(), Some(head.as_str()), "the landing names its commit");
+    assert_eq!(sh(f, &["rev-parse", "HEAD^"]), start, "one commit on the branch the folder is on");
+    assert_eq!(sh(f, &["symbolic-ref", "--short", "HEAD"]), "main", "the checkout did not move");
+    assert_eq!(sh(f, &["log", "-1", "--format=%s%n%n%b"]), "docs: second draft\n\nRewrites the plan.");
+    assert_eq!(
+        sh(f, &["show", "--name-status", "--format=", "HEAD"]),
+        "A\textra.txt\nD\told.txt\nM\tplan.txt",
+        "exactly the version's paths"
+    );
+    assert_eq!(sh(f, &["show", "HEAD:plan.txt"]), "two");
+    assert_eq!(sh(f, &["diff", "--cached", "--name-only"]), "todo.md", "the user's staged edit stays staged");
+    assert_eq!(sh(f, &["status", "--porcelain", "--", "plan.txt", "extra.txt", "old.txt"]), "", "the commit matches the folder");
+    assert_eq!(std::fs::read_to_string(f.join("todo.md")).unwrap(), "a\nb\n");
+    assert!(!f.join("hook-ran").exists(), "no hook runs");
 }
 
 fn opened_checkpoint(rw: &model::RepoWork) -> String {

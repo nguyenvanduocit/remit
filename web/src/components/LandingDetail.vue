@@ -40,7 +40,7 @@ const failed = (s?: string) => s === 'failed';
 <template>
   <PageSection :title="version.title" id="landing-record" data-landing-record>
     <template #aside>
-      <LandingBadge :state="landing.state" />
+      <LandingBadge :landing="landing" />
       <RouterLink v-if="landing.queue" class="inline-flex items-center gap-1 whitespace-nowrap text-blue-text hover:underline" :to="{ name: 'queues', query: { queue: queueKey({ repo: landing.repo, base: landing.queue.base }) } }" data-queue-link>Its queue<Icon name="arrow-right" :size="11" /></RouterLink>
     </template>
     <div class="flex flex-col gap-3.5">
@@ -67,14 +67,19 @@ const failed = (s?: string) => s === 'failed';
           <span v-if="taking.reverts.why" class="min-w-0 [overflow-wrap:anywhere]">{{ taking.reverts.why }}</span>
         </p>
         <p class="m-0 mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] text-text2" data-revert>
-          The revert: <RouterLink class="text-blue-text hover:underline" :to="linkTo(taking)">{{ taking.version.title }}</RouterLink><LandingBadge :state="taking.state" />
+          The revert: <RouterLink class="text-blue-text hover:underline" :to="linkTo(taking)">{{ taking.version.title }}</RouterLink><LandingBadge :landing="taking" />
         </p>
       </Callout>
       <Markdown v-if="version.description" :text="version.description" type="quiet" data-description />
       <KeyValues>
-        <dt>Lands on</dt>
-        <dd v-if="landing.queue">{{ landing.repo }} · <span class="mono">{{ landing.queue.project }} → {{ landing.queue.base }}</span></dd>
-        <dd v-else><span class="mono">{{ landing.repo }}</span> · in place, in the folder itself</dd>
+        <template v-if="landing.queue">
+          <dt>Lands on</dt>
+          <dd>{{ landing.repo }} · <span class="mono">{{ landing.queue.project }} → {{ landing.queue.base }}</span></dd>
+        </template>
+        <template v-else>
+          <dt>Folder</dt>
+          <dd><span class="mono">{{ landing.repo }}</span> · worked in place<template v-if="landing.commit">, committed on the branch it is on</template></dd>
+        </template>
         <dt>Version</dt>
         <dd>{{ version.number }} · <span class="mono">{{ shortSha(version.from) }}</span><template v-if="version.forked">, forked from <span class="mono">{{ shortSha(version.forked) }}</span></template></dd>
         <template v-if="landing.reverts">
@@ -109,7 +114,7 @@ const failed = (s?: string) => s === 'failed';
           <dd><Ago :at="landing.readyAt" /></dd>
         </template>
         <template v-if="landing.landedAt">
-          <dt>Landed</dt>
+          <dt>{{ landing.queue ? 'Landed' : landing.commit ? 'Committed' : 'Approved' }}</dt>
           <dd><Ago :at="landing.landedAt" /></dd>
         </template>
         <template v-if="landing.release">

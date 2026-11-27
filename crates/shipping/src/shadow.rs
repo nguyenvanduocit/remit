@@ -152,6 +152,36 @@ impl Shadow {
         self.git(&["show", &format!("{at}:{file}")]).await.unwrap_or_default()
     }
 
+    /// What checkpoint at holds of paths, as `git ls-tree -z` prints it: a path it lacks is not listed.
+    pub async fn entries(&self, at: &str, paths: &[String]) -> Result<String, String> {
+        let mut out = String::new();
+        for chunk in paths.chunks(PATHS_PER_RESTORE) {
+            let mut args = vec!["ls-tree", "-z", at, "--"];
+            args.extend(chunk.iter().map(String::as_str));
+            out.push_str(&self.git(&args).await?);
+            out.push('\0');
+        }
+        Ok(out)
+    }
+
+    /// Writes the object of a checkpoint into the object store of the repository at repo, under the same id.
+    pub async fn copy_object(&self, object: &str, repo: &str) -> Result<(), String> {
+        let script = format!(
+            "git --git-dir={} cat-file blob {} | git hash-object -w --stdin",
+            quoted(&self.git_dir),
+            quoted(object)
+        );
+        let out = chains::git::shell(repo, &script)
+            .output()
+            .await
+            .map_err(|err| format!("copy {object}: {err}"))?;
+        let made = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+        if !out.status.success() || made != object {
+            return Err(format!("copy {object}: {}{}", out.status, stderr_of(&out.stderr)));
+        }
+        Ok(())
+    }
+
     /// The checkpoints, newest first.
     pub async fn checkpoints(&self) -> Result<Vec<Checkpoint>, String> {
         if !Path::new(&self.git_dir).join("HEAD").exists() {

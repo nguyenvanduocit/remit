@@ -29,7 +29,7 @@ use crate::round::approved_state;
 use chains::apply::Records;
 use chains::chain_core::{first_line, new_id};
 use chains::gate::{missing_approvals, review_needs_evidence};
-use chains::git::{Check, git};
+use chains::git::{Check, git, short};
 use chains::live::LandingWrite;
 use chains::review_depth::{Change, Said};
 use chains::step::{ChainCmd, Decided, WorkCmd, replace_with};
@@ -658,8 +658,13 @@ impl Shipping {
             });
         }
         let at = l.created_at;
+        let judging = l.clone();
         let approved = approve(&mut l, &approvals, self.cfg.require_approvals, round.as_ref(), at);
-        let text = if approved {
+        let committed = if approved { self.commit_in_folder(chain, &mut l).await } else { Ok(()) };
+        let text = if let Err(err) = committed {
+            l = judging;
+            uncommitted_text(&l, &err)
+        } else if approved {
             landed_in_place(chain, &l, rec).map_err(|e| e.to_string())?;
             approved_text(&l)
         } else {
@@ -749,11 +754,20 @@ pub(crate) fn approved_text(l: &Landing) -> String {
         LandingState::Returned { output, .. } => {
             format!("Version {} of {} does not land: {output}", l.version.number, l.repo)
         }
-        LandingState::Landed if l.queue.is_none() => format!(
-            "Version {} of {} is approved and landed: its files are already in the folder, and its checkpoint is the base \
-             of the next version.",
-            l.version.number, l.repo
-        ),
+        LandingState::Landed if l.queue.is_none() => match &l.commit {
+            Some(commit) => format!(
+                "Version {} of {} is approved and committed as {} on the branch the folder is on; its checkpoint is the \
+                 base of the next version.",
+                l.version.number,
+                l.repo,
+                short(commit)
+            ),
+            None => format!(
+                "Version {} of {} is approved: its files are in the folder, which keeps no Git history of its own to \
+                 commit to, and its checkpoint is the base of the next version.",
+                l.version.number, l.repo
+            ),
+        },
         _ => format!(
             "Version {} of {} is in the queue for {}: Remit combines it with the base, checks it and pushes it; you \
              hear when it lands.",
@@ -762,6 +776,16 @@ pub(crate) fn approved_text(l: &Landing) -> String {
             l.queue.as_ref().map(|q| q.base.as_str()).unwrap_or_default()
         ),
     }
+}
+
+/// What the Chair hears of its version l of a folder worked in place when its gates approved it and the commit in the
+/// folder's repository failed (err): it stays judging, and the next look at open landings commits it again.
+pub(crate) fn uncommitted_text(l: &Landing, err: &str) -> String {
+    format!(
+        "Version {} of {} is approved, but Remit could not commit it in the folder's repository: {err}. It stays judging, \
+         and Remit commits it again on its next look at open landings.",
+        l.version.number, l.repo
+    )
 }
 
 /// The ids of the verdicts that approve l's change, one per gate it needs: the latest of each.

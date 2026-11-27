@@ -49,8 +49,9 @@ and the README of each crate below it.
   to a base branch, never forced; a chain's branch (`feature/mc-*`) stays in its worktree.
 - The result of every kind of work is files, in one of two places (ADR-0137). A repository of a forge is worked in a clone's
   worktree and landed on its base by Remit's merge queue. A folder on the owner's machine, a Git repository or not, is
-  worked in place: the agents change the folder itself, Remit keeps checkpoints of it outside it, and a version is landed
-  once its gates approve it. Work with no software in it becomes files too (plans, content, configuration, decision
+  worked in place: the agents change the folder itself, Remit keeps checkpoints of it outside it, and a version lands
+  once its gates approve it: as a commit on the folder's own branch when the folder is the top of a Git repository
+  (ADR-0139), as its approval alone otherwise. Work with no software in it becomes files too (plans, content, configuration, decision
   records); its gates' verdicts are its approval, and the owner reads it after it lands.
 - Anti-goals (failure even if it works): noise (chains that produce nothing worth reading),
   having to babysit, an agent doing something the UI does not show.
@@ -455,8 +456,14 @@ and the README of each crate below it.
    of the diff between the two; it runs no `.remit/checks`, refuses the same forbidden paths and takes no canary stage. The
    same gates judge it, reading the diff between the checkpoints (the Chair is told the `git --git-dir=<shadow> diff`
    command), and a verdict is refused while the folder holds an edit no checkpoint holds. Its `queue` is none, so it
-   belongs to no merge queue, batch, push or release: once the last gate approves it is `landed`, its files being already in
-   the folder, and its checkpoint is the base of the next version. A refusal leaves it `judging` until the Chair fixes
+   belongs to no merge queue, batch, push or release: once the last gate approves it is `landed` and its checkpoint is the
+   base of the next version. When the folder is the top of a Git working tree, landing commits it there (ADR-0139,
+   `crates/shipping/src/folder_repo.rs`): the version's paths as its checkpoint holds them, over the folder's `HEAD`, in a
+   temporary index with `commit-tree` (no hook, the checkout and working tree untouched), the Chair's title and
+   description as the message, the branch moved by compare-and-swap and read again if it moved, those paths of the
+   user's index reset to the new `HEAD`, and the commit recorded on the landing; a commit that fails leaves it `judging`
+   and the next look at open landings commits it again. A folder that is not Git, or sits inside a larger repository,
+   is committed nowhere: its approval is the landing, which the screen says as approved. A refusal leaves it `judging` until the Chair fixes
    the folder, or restores a checkpoint, and lands again, which replaces it.
    The Chair rates each change when it lands it: `priority` (high, medium or low, by what waits on it or what breaks
    if it is wrong) and `priority_why`, one line for the owner. `land` refuses a change without both before it does
@@ -622,7 +629,8 @@ and the README of each crate below it.
     **Shipping** (ADR-0114). Remit lands every approved change itself; no agent merges and no capability is needed to land.
     - **In place.** A version of a folder worked in place (ADR-0137) is a landing whose `queue` is none, so no queue runner,
       batch, push, forge check, canary stage or release reads it (`Landing::queue` is the one place that says which a landing
-      is): `approve` moves it from `judging` to `landed` when its last gate approves, the Chair is told in the same write, and
+      is): `approve` moves it from `judging` to `landed` when its last gate approves, `commit_in_folder` commits it in a Git
+      folder (ADR-0139), the Chair is told in the same write, and
       `fact:chain.landed` is written as for any landing. It is taken back by `restore_checkpoint`, never by `revert_landing`.
     - **The merge queue.** A landing that turns `ready` enters the queue of its repository and base (`QueueKey`: the
       forge's host, the path there, the base), whose rule is pure (`crates/shipping/src/landing.rs`) and whose shell

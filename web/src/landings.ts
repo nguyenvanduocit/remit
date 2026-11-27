@@ -16,6 +16,11 @@ export const LANDING_LOOK: Record<LandingState['kind'], Look & { label: string; 
   reverted: { tone: 'danger', icon: 'repeat', label: 'Taken back' },
 };
 
+// How landing l looks where it stands: its state's look, but a version of a folder that is not Git, which lands by its gates'
+// approval alone and is committed nowhere (ADR-0139), reads as approved.
+export const landingLook = (l: Landing): Look & { label: string; working?: boolean } =>
+  l.state.kind === 'landed' && !l.queue && !l.commit ? { tone: 'success', icon: 'check', label: 'Approved' } : LANDING_LOOK[l.state.kind];
+
 export const RETURN_SAYS: Record<ReturnReason, string> = {
   conflict: 'It conflicts with the base: the queue never resolves a conflict, its Chair does',
   checks: 'The checks failed on it combined with the base',

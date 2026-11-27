@@ -639,17 +639,27 @@ impl Shipping {
             .find(|l| l.state == LandingState::Judging && l.repo == a.repo && l.version.change == a.change);
         let (mut ready, mut contends) = (None, false);
         if let Some(mut l) = judged {
+            let judging = l.clone();
             if approve(&mut l, &approvals, self.cfg.require_approvals, round.as_ref(), a.at) {
                 contends = l.state == LandingState::Contending;
                 ready = l.queue.clone().filter(|_| l.state == LandingState::Ready);
                 if l.state == LandingState::Landed {
                     // a version of a folder worked in place landed with this verdict: its Chair is told
-                    landed_in_place(&held.chain, &l, &mut rec)?;
+                    let text = match self.commit_in_folder(&held.chain, &mut l).await {
+                        Ok(()) => {
+                            landed_in_place(&held.chain, &l, &mut rec)?;
+                            crate::land::approved_text(&l)
+                        }
+                        Err(err) => {
+                            l = judging;
+                            crate::land::uncommitted_text(&l, &err)
+                        }
+                    };
                     rec.messages.push(chains::outbox::Message {
                         to: held.chain.chair_id.clone(),
                         home: chain_id.to_owned(),
-                        title: "Landed".to_owned(),
-                        text: crate::land::approved_text(&l),
+                        title: if l.state == LandingState::Landed { "Landed" } else { "Not committed" }.to_owned(),
+                        text,
                         by: chains::outbox::by_remit(),
                         ..chains::outbox::Message::default()
                     });

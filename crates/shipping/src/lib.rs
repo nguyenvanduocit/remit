@@ -7,6 +7,7 @@ pub mod check_rail;
 pub mod checkpoint;
 pub mod direct_push;
 pub mod folder;
+pub mod folder_repo;
 pub mod gate;
 pub mod goal;
 pub mod hire;

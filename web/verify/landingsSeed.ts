@@ -127,7 +127,12 @@ export function landingsSeed(now = Date.now()) {
     version: { number: 1, title: 'docs: second draft of the plan', from: sha(30), forked: sha(29), verdicts: ['v_r20'], gates: ['reviewer'], paths: ['plan.txt', 'extra.txt'] },
     priority: 'low', priorityWhy: 'Nothing waits on the notes.', landedAt: iso(20 * MIN), readyAt: iso(21 * MIN), createdAt: iso(25 * MIN), updatedAt: iso(20 * MIN) });
 
-  const all = [notes, migrated, b1, c1, checksFailed, b2, r2, k1, w0, w1, rel, b3, c2, rk1, login, docs, long, bWeb, contending];
+  // The same folder once it became a Git repository: its approved version is a commit on the branch it is on (ADR-0139).
+  const notesCommitted = landingRecord({ id: 'ln_n2', chainId: 'ch_notes', repo: NOTES, queue: undefined, state: { kind: 'landed' }, commit: sha(31),
+    version: { number: 2, title: 'docs: the plan, with dates', from: sha(32), forked: sha(30), verdicts: ['v_r21'], gates: ['reviewer'], paths: ['plan.txt'] },
+    priority: 'low', priorityWhy: 'Nothing waits on the notes.', landedAt: iso(5 * MIN), readyAt: iso(5 * MIN), createdAt: iso(8 * MIN), updatedAt: iso(5 * MIN) });
+
+  const all = [notes, notesCommitted, migrated, b1, c1, checksFailed, b2, r2, k1, w0, w1, rel, b3, c2, rk1, login, docs, long, bWeb, contending];
   // The revert still on its way, as the server says of it (Landing::taking_back), by the revert.
   const takingBack: Record<string, string> = { [rk1.id]: k1.id };
   // Each repository's queues as the server lays them out: a version still judged or contending is in none.
