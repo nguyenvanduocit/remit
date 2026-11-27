@@ -54,7 +54,7 @@ let focusHandedOn = false;
         >{{ p.label }}<Badge v-if="waiting[p.name]" size="count" variant="needs" data-tab-count>{{ waiting[p.name] }}</Badge></RouterLink
       >
     </nav>
-    <div v-if="$slots.end" class="flex min-w-0 flex-[1_1_16rem] items-center justify-end gap-2 py-1.5"><slot name="end" /></div>
+    <div v-if="$slots.end" class="flex min-h-9 min-w-0 flex-[1_1_16rem] items-center justify-end gap-2"><slot name="end" /></div>
   </div>
 </template>
 
