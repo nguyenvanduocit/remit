@@ -341,8 +341,8 @@ each hit.
   push is a GitHub release (`.github/workflows/release.yml` tests it and publishes it as `<yyyymmdd>-<short sha>`).
   Pushing is the last step: never wait on CI, and never deploy to another machine.
 - **Build and restart the running server after every repository change.** On this Mac, the owner uses the launchd job
-  `gui/$(id -u)/remit` on port 4320. Build the verified commit with `gmake build` in a clean checkout, keep the
-  previous binary and a pre-upgrade database snapshot. Stage the binary with the launchd job's signing identifier
+  `gui/$(id -u)/remit` on port 4320. Build the verified commit with `gmake build` in a clean checkout. Deploy this
+  personal instance without backups. Stage the binary with the launchd job's signing identifier
   (`codesign --force --sign - --identifier remit` for this ad hoc-signed install), verify the signature and atomically
   install it at the job's configured path. Send SIGTERM to drain the service, then reload its existing plist if
   launchd does not start the new binary. Check the expected revision and connected runtime at
