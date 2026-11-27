@@ -58,6 +58,8 @@ pub(crate) fn options(spec: &Spec, root: &Path) -> claudecode::Options {
     // and auto memory would write Claude Code's per-project default, which another employee's session in the same worktree
     // would read.
     settings.insert("autoMemoryEnabled".into(), json!(false));
+    // Claude Code's headless opt-in must come from the explicit --settings overlay.
+    settings.insert("env".into(), json!({ "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE": "1" }));
     if !spec.ask_tools.is_empty() {
         settings.insert("permissions".into(), json!({ "ask": spec.ask_tools }));
     }
@@ -94,21 +96,17 @@ pub(crate) fn options(spec: &Spec, root: &Path) -> claudecode::Options {
     }
 }
 
-/// The variables that have Claude Code export its logs, metrics and spans to t (ADR-0085): over OTLP/HTTP JSON, tool
-/// details included, the text of prompts and answers not (the stream holds it). Logs and spans go out every few seconds,
-/// so a card's telemetry follows its work. Metrics are delta, the only temporality Datadog's intake takes (ADR-0119).
+/// The variables that have Claude Code export its logs and metrics to t (ADR-0085): over OTLP/HTTP JSON, tool details
+/// included. Code Mode uses standard telemetry (ADR-0143). Metrics are delta, the temporality Datadog takes (ADR-0119).
 fn telemetry_env(t: &crate::Telemetry) -> Vec<String> {
     [
         ("CLAUDE_CODE_ENABLE_TELEMETRY", "1"),
-        ("CLAUDE_CODE_ENHANCED_TELEMETRY_BETA", "1"),
         ("OTEL_LOGS_EXPORTER", "otlp"),
         ("OTEL_METRICS_EXPORTER", "otlp"),
-        ("OTEL_TRACES_EXPORTER", "otlp"),
         ("OTEL_EXPORTER_OTLP_PROTOCOL", "http/json"),
         ("OTEL_EXPORTER_OTLP_ENDPOINT", t.endpoint.as_str()),
         ("OTEL_LOG_TOOL_DETAILS", "1"),
         ("OTEL_LOGS_EXPORT_INTERVAL", "5000"),
-        ("OTEL_TRACES_EXPORT_INTERVAL", "5000"),
         ("OTEL_METRIC_EXPORT_INTERVAL", "30000"),
         ("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta"),
     ]

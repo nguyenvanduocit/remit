@@ -322,7 +322,8 @@ impl Conn {
             cmd.current_dir(&o.cwd);
         }
         let extra = [
-            "CLAUDE_CODE_ENTRYPOINT=sdk-rust".to_string(),
+            // This client uses Claude Code's headless CLI protocol.
+            "CLAUDE_CODE_ENTRYPOINT=sdk-cli".to_string(),
             "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1".to_string(),
         ];
         crate::set_env(&mut cmd, extra.iter().chain(&o.env));

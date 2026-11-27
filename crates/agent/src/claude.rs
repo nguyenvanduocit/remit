@@ -1166,8 +1166,7 @@ const SETTINGS_FIXED: &str =
     "Remit starts each session with its settings; a change to them applies from the next session.";
 
 /// What a system message of subtype says of the session beside the agent's work, as a note: a request to the model
-/// retried (api_retry), the conversation compacted (compact_boundary) or not (a status whose compaction failed). `None`
-/// for any other message, and for one that does not read as its subtype.
+/// retried, the conversation compacted or failed to compact, or Code Mode was refused.
 fn system_note(subtype: &str, raw: &str) -> Option<Note> {
     #[derive(Deserialize)]
     struct Retry {
@@ -1192,6 +1191,11 @@ fn system_note(subtype: &str, raw: &str) -> Option<Note> {
         compact_result: Option<String>,
         #[serde(default)]
         compact_error: String,
+    }
+    #[derive(Deserialize)]
+    struct Notification {
+        key: String,
+        text: String,
     }
     let (kind, text) = match subtype {
         "api_retry" => {
@@ -1227,6 +1231,13 @@ fn system_note(subtype: &str, raw: &str) -> Option<Note> {
                 NoteKind::CompactFailed,
                 format!("Claude Code could not compact the conversation: {}", st.compact_error),
             )
+        }
+        "notification" => {
+            let n: Notification = serde_json::from_str(raw).ok()?;
+            if n.key != "code-mode-opt-in" {
+                return None;
+            }
+            (NoteKind::Refused, n.text)
         }
         _ => return None,
     };

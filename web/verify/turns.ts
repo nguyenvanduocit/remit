@@ -85,6 +85,7 @@ end(96_000, [touched('execute', 'psql', 'psql replica -c "select count(*) from o
 
 // A failed turn: the build failed twice and a delete was refused.
 prompt('Clear the build cache and build again.');
+ev('system', 1_000, { status: 'refused', text: "Code Mode (experimental) isn't available: Claude Code couldn't read your organization's settings or policy (starting Claude Code again may help). Starting with the ordinary tools." });
 const f1 = tool('execute', 'cargo', 'cargo build --release', 'failed');
 const r1 = ev('system', 1_000, { activity: { type: 'decided', request: 'rm -rf target', allowed: false }, by: actorOf('remit', 'rule'), text: 'Deleting outside the worktree is refused.', title: 'rm -rf target' });
 const f2 = tool('execute', 'cargo', 'cargo build --release', 'failed');

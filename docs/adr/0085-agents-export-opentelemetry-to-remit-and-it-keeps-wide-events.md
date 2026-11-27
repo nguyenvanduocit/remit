@@ -3,6 +3,8 @@
 Status: accepted, 2026-11-12. Extends ADR-0084 (what Claude Code does to a session) and ADR-0058 (sessions run in the AI
 runtime).
 
+ADR-0143 records the session launch settings for Code Mode and standard telemetry.
+
 ## Context
 
 The owner judges agents by what they cost, how fast and how reliably they work, and what they spend their context on.
