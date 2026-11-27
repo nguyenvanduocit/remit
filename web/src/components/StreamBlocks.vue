@@ -38,9 +38,6 @@ const nameOf = (id?: string) => (id ? stream.nameOf(id) : 'System');
 // Who a message into this agent came from: another agent, its own background work, or the System.
 const senderName = (e: EventRead) => (agentSender(e) === e.event.cardId ? 'Its background work' : nameOf(agentSender(e)));
 const isLast = (i: number) => i === props.blocks.length - 1;
-// A long run of steps a message closed shows as one bar until the owner opens it; opened, it stays open.
-const runs = computed(() => foldedRuns(props.blocks));
-const foldOf = (i: number) => runs.value.find((r) => i >= r.start && i < r.end && !open.value[r.key]);
 const groupOpen = (b: Extract<Block, { type: 'tools' }>, i: number) => open.value[b.key] ?? (b.running && props.live && isLast(i));
 function fmt(v: unknown): string {
   return typeof v === 'string' ? v : JSON.stringify(v, null, 2);
@@ -57,7 +54,7 @@ const turns = computed(() => {
   const out: Turn[] = [];
   let cur: Turn | null = null;
   props.blocks.forEach((b, i) => {
-    if (b.type === 'prompt') {
+    if (b.type === 'prompt' && !['steered', 'queued', 'dropped'].includes(b.event.event.status ?? '')) {
       cur = { key: 't' + b.key, turn: true, items: [] };
       out.push(cur);
     } else if (!cur) {
@@ -69,6 +66,18 @@ const turns = computed(() => {
   });
   return out;
 });
+const runs = computed(() => turns.value.flatMap((t, index) => {
+  const start = t.items[0].i;
+  const { b: end, i } = t.items[t.items.length - 1];
+  if (end.type === 'turnEnd' && end.turn) return [];
+  const closed = end.type === 'turnEnd' || !!turns.value[index + 1]?.turn || (t.turn && !props.live);
+  return foldedRuns(props.blocks.slice(start, i + 1), start, closed);
+}));
+const foldOf = (i: number) => runs.value.find((r) => i >= r.start && i < r.end);
+const folded = (i: number) => {
+  const run = foldOf(i);
+  return !!run && !open.value[run.key];
+};
 // A turn that ended with the row the server summed it up in (TurnLine) folds its steps into that row: the turn reads as what
 // was said and one line of what was done. Each step's index maps to the key of the turn end that stands for it; opened
 // ('s' + that key), the steps unfold under that row, in the order they happened, where the owner clicked.
@@ -97,9 +106,10 @@ const groupMs = (events: EventRead[]) => events.reduce((s, e) => s + Math.max(0,
   <template v-for="t in turns" :key="t.key">
   <component :is="t.turn ? 'div' : Bare" v-if="drawn(t)" :class="t.turn ? 'turn' : undefined" :data-turn="t.turn ? '' : undefined">
   <template v-for="{ b, i } in t.items" :key="b.key">
-    <template v-if="inTurnFold(i)" />
-    <ShowMore v-else-if="foldOf(i)?.start === i" class="my-1.5" @click="open[foldOf(i)!.key] = true">Show {{ plural(foldOf(i)!.end - i, 'step') }}</ShowMore>
-    <template v-else-if="foldOf(i)" />
+    <ShowMore v-if="foldOf(i)?.start === i" class="my-1.5" :aria-expanded="!folded(i)" @click="open[foldOf(i)!.key] = folded(i)">
+      {{ folded(i) ? 'Show' : 'Hide' }} {{ plural(foldOf(i)!.end - i, 'step') }}<span v-if="foldOf(i)!.failed" class="text-red-text"> · {{ foldOf(i)!.failed }} failed</span>
+    </ShowMore>
+    <template v-if="inTurnFold(i) || folded(i)" />
 
     <div v-else-if="b.type === 'prompt' && ownerSent(b.event)" class="mine" :data-by="b.event.event.by!.kind"><div class="meta">{{ actorName(b.event.event.by!, stream.nameOf) }} · {{ hm(b.event.event.createdAt) }}</div>
       <div v-if="b.event.event.text.trim()" class="bubble" :class="{ queued: b.event.event.status === 'queued', dropped: b.event.event.status === 'dropped', assistant: b.event.event.by!.kind === 'assistant' }">{{ b.event.event.text }}</div>

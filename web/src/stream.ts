@@ -172,27 +172,32 @@ export const mentorSaid = (e: EventRead): boolean => e.event.by?.kind === 'mento
 // A mentor's message without the header line the server put over it for the agent ("[from Lan, your mentor]").
 export const mentorText = (e: EventRead): string => e.event.text.replace(/^\[from [^\n]*, your mentor\]\n/, '');
 
-// More rows of steps than this between two messages fold into one line the owner opens, so a finished stretch of work
-// scans as what the agent said.
+// In an active turn, short stretches stay visible alongside the agent's progress messages.
 const FOLD_OVER = 5;
 export interface StepRun {
   key: string; // the first row's, so a run keeps it as the stream grows
   start: number; // index of its first block
   end: number; // index past its last
+  failed: number;
 }
-// foldedRuns finds the runs of steps that a message closes and that are long enough to fold. The run after the last
-// message stays open: the agent is still at it.
-export function foldedRuns(bs: readonly Block[]): StepRun[] {
+// Older turns without a summary fold every stretch of steps in place, keeping messages in order.
+export function foldedRuns(bs: readonly Block[], offset: number, closed: boolean): StepRun[] {
   const out: StepRun[] = [];
   let start = -1;
-  bs.forEach((b, i) => {
-    if (isStep(b)) {
+  let failed = 0;
+  for (let i = 0; i <= bs.length; i++) {
+    const b = bs[i];
+    if (b && b.type !== 'prompt' && isStep(b)) {
       if (start < 0) start = i;
-      return;
+      if (b.type === 'tools') failed += b.failed;
+      continue;
     }
-    if (b.type === 'message' && start >= 0 && i - start > FOLD_OVER) out.push({ key: 'f' + bs[start].key, start, end: i });
+    if (start >= 0 && (closed || (b?.type === 'message' && i - start > FOLD_OVER))) {
+      out.push({ key: 'f' + bs[start].key, start: offset + start, end: offset + i, failed });
+    }
     start = -1;
-  });
+    failed = 0;
+  }
   return out;
 }
 

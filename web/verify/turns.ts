@@ -3,7 +3,7 @@
 // The engineer's turns: a busy one (fourteen steps, a test run three times, a file edited three times), a turn of one step
 // repeated many times, a turn where a build failed and a delete was refused, a run of short turns, a turn three hours after
 // the one before, a turn too long for the server to read whole (`partial`), a turn cancelled before it ended, and the turn it
-// is in now, still running. Its replies carry Helpful / Not helpful / Correct reply (`turn_teach`, kept in window.calls).
+// is in now, still running, after a restart cut off its previous turn. Its replies carry Helpful / Not helpful / Correct reply.
 // window.add(n) plays the server adding n events to the running turn (n tool calls and a message), as the scroll check does;
 // ?play=<ms> adds one every <ms>.
 import '@fontsource-variable/inter';
@@ -116,8 +116,15 @@ prompt('Summarise the whole migration for the review.');
 tool('read', 'Read', 'docs/adr/0091-an-agent-shows-a-block.md');
 end(54_000, [touched('read', 'Read', 'docs/adr/0091-an-agent-shows-a-block.md')], [], false, 'cancelled');
 
-// The turn it is in now.
+// The server restarted before this turn wrote its summary.
 prompt('Watch the canary for ten minutes and report.', 30_000);
+tool('read', 'Read', 'canary/config.toml');
+say('I found the health check for the canary.');
+ev('thought', 2_000, { text: 'I can check the health endpoint directly.' });
+tool('execute', 'curl', 'curl -s canary/healthz', 'failed');
+
+// The turn it is in now.
+ev('prompt', 30_000, { title: 'Resume after a restart', status: 'delivered' });
 tool('execute', 'curl', 'curl -s canary/healthz', 'running');
 
 const calls: string[] = [];
