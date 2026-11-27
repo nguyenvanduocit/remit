@@ -47,7 +47,6 @@ const nextCheckBack = computed(() => {
           </template>
           <EmptyState v-if="!running.length && !waiting.length && !queued.length">No chains are running or waiting.</EmptyState>
           <p v-if="workload.pressure" class="m-0 text-[11.5px] text-text2" data-pressure><b>Limit held down:</b> {{ workload.pressure }}.</p>
-          <p class="m-0 border-t border-line pt-2.5 text-[11.5px] text-mut">Remit runs on its own: queued chains start when there is room, and the limit of {{ workload.capacity }} grows by one each look while nothing presses on the accounts or the host; routines start chains at their times. <RouterLink class="text-blue-text hover:underline" :to="{ name: 'subscriptions' }">See what it waits for</RouterLink></p>
         </div>
       </PopoverContent>
     </Popover>
