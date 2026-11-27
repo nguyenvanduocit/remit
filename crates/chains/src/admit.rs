@@ -133,7 +133,7 @@ impl Pressure {
 }
 
 /// n bytes as the owner reads a size: "812 MB", "3.4 GB".
-fn bytes_text(n: u64) -> String {
+pub(crate) fn bytes_text(n: u64) -> String {
     const MB: u64 = 1 << 20;
     const GB: u64 = 1 << 30;
     if n >= GB {

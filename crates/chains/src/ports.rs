@@ -161,10 +161,14 @@ pub trait Bundled: Send + Sync {
     fn ids(&self) -> Vec<String>;
 }
 
-/// The machine Remit runs on, as the capacity reads it (admit.rs's `Pressure`).
+/// The machine Remit runs on, as the capacity (admit.rs's `Pressure`) and a session's start (disk_floor.rs) read it.
 pub trait Host: Send + Sync {
     /// The host now; none when it cannot be read. It may take a while: the caller reads it off the async threads.
     fn reading(&self) -> Option<HostReading>;
+
+    /// The bytes free to Remit on the volume that holds dir; none when it cannot be read. The caller reads it off the
+    /// async threads: a volume may be slow to answer.
+    fn free_space(&self, dir: &std::path::Path) -> Option<u64>;
 }
 
 /// What the host had at one look.

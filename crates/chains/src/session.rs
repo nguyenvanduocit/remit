@@ -552,7 +552,13 @@ impl Core {
     /// handled. The session runs Claude Code on the account the card is placed on, and goes on another when that one fails
     /// it.
     async fn launch(self: &Arc<Self>, r: &Arc<Run>) -> Option<(Card, Arc<dyn agent::Session>)> {
-        let c = match self.bind_account(r.card_now()).await {
+        let c = r.card_now();
+        if let Err(low) = self.work_room(&c).await {
+            // what the session would write fills the volume the server writes on too (ADR-0140)
+            self.fail_to_open(r, &c, &format!("start session: {low}")).await;
+            return None;
+        }
+        let c = match self.bind_account(c).await {
             Ok(c) => c,
             Err(err) => {
                 let c = r.card_now();

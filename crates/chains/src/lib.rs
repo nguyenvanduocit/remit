@@ -25,6 +25,7 @@ pub mod climb;
 pub mod commit;
 pub mod customer;
 pub mod deny;
+pub mod disk_floor;
 pub mod domains;
 pub mod drafts;
 pub mod duel;

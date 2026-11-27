@@ -277,6 +277,9 @@ and the README of each crate below it.
    warned of, a turn whose account failed and whose card moved on since the last Tick, the host's free memory below twice
    what one session holds on average (the server's descendant processes over its open sessions), or its last minute's
    load above its cores. The workload pill shows the limit and what presses on it, and a start it holds says both.
+   Below admission, a worker's or judge's session start (`Core::launch`) is refused while the work root's volume has less
+   than `WORK_FLOOR` (5 GiB) free (ADR-0140, `chains::disk_floor`): the card fails saying the free space and the floor,
+   with its retry in the inbox; the Chair and the Assistant start regardless.
    The limit is shared by key result (ADR-0115): a key result's chains hold at most its share at once (`share`: 1 to begin,
    one more for each landing of its work that lands and is not reverted, halved, never below 1, for each reverted or
    returned for a conflict or a failed combined check), a key result whose landings waiting in queues (`ready`,
