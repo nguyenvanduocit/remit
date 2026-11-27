@@ -16,12 +16,12 @@ use crate::{Actor, Checks, Duration, Gate, SignalKey, Time};
 pub struct Landing {
     pub id: String,
     pub chain_id: String,
-    /// The repository as the chain opened it (`RepoWork::repo`), its forge's host and path there, and the branch it
-    /// lands on: the queue it waits in is the host, path and base's.
+    /// The repository as the chain opened it (`RepoWork::repo`).
     pub repo: String,
-    pub host: String,
-    pub project: String,
-    pub base: String,
+    /// The queue it waits in: its forge's host, its path there and the branch it lands on. None for a version of a folder
+    /// worked in place (ADR-0137): its files are already where they land, so it has no queue, batch or push.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue: Option<QueueKey>,
     pub version: LandingVersion,
     /// The Chair's rating of this version, for what the owner reads first; the queue does not order by it.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -72,13 +72,19 @@ pub struct Landing {
 }
 
 impl Landing {
-    /// The queue the landing waits in: its forge's host, its path there and the branch it lands on.
-    pub fn queue(&self) -> QueueKey {
-        QueueKey {
-            host: self.host.clone(),
-            project: self.project.clone(),
-            base: self.base.clone(),
-        }
+    /// The forge host of its queue; empty for a version of a folder worked in place, which no queue code reads.
+    pub fn host(&self) -> &str {
+        self.queue.as_ref().map_or("", |q| q.host.as_str())
+    }
+
+    /// Its repository's path on its forge, as `host`.
+    pub fn project(&self) -> &str {
+        self.queue.as_ref().map_or("", |q| q.project.as_str())
+    }
+
+    /// The branch it lands on, as `host`.
+    pub fn base(&self) -> &str {
+        self.queue.as_ref().map_or("", |q| q.base.as_str())
     }
 
     /// Whether its change is on the base now: landed and not taken back.

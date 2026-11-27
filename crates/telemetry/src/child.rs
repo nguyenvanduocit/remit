@@ -46,7 +46,7 @@ impl Child {
         childenv::trace(env, &trace_of(&self.span))
     }
 
-    /// The child ended with exit_code, or the jail ended it at its deadline: a non-zero exit or a timeout marks the span
+    /// The child ended with exit_code, or the runner ended it at its deadline: a non-zero exit or a timeout marks the span
     /// an error.
     pub fn ended(&self, exit_code: i32, timed_out: bool) {
         self.span.record("exit_code", exit_code);
@@ -56,7 +56,7 @@ impl Child {
         }
     }
 
-    /// The child could not be run (no jail, no gate): the span is an error.
+    /// The child could not be run (it would not start, no gate): the span is an error.
     pub fn failed(&self) {
         self.span.record("otel.status_code", "error");
     }

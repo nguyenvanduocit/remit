@@ -639,6 +639,21 @@ impl Orchestrator {
         );
         let b = by.clone();
         t.serving(self).add(
+            "restore_checkpoint", Effect::Writes,
+            "Take a folder a chain works in place back to one of its checkpoints, on the owner's word, by the chain's id (chain), the folder (repo, empty when the chain has one) and the checkpoint's id (at least 4 characters of it) and why: the checkpoint's files are written back and the files made since are removed. It refuses, naming the file and writing nothing, when a file it would overwrite changed since the newest checkpoint (his own edit). With no checkpoint it lists them, newest first. The Chair is told. Recorded as yours, for him.",
+            move |o, i: shipping::folder::RestoreInput| {
+                let by = b.clone();
+                async move {
+                    let chain = i.chain.trim().to_owned();
+                    if chain.is_empty() {
+                        return Err(Error::refused("chain is required: the id of the chain whose folder it is"));
+                    }
+                    o.shipping.restore_checkpoint(by, &chain, i).await
+                }
+            },
+        );
+        let b = by.clone();
+        t.serving(self).add(
             "revert_release", Effect::Writes,
             "Take back a release of a repository, on the owner's word, by its id (rl_…) and why: Remit runs its way back at once (the repository's .remit/release/back steps, or the previous release installed on this server), reverts every landing it carried at the head of its queue, and releases the reverts forward once they land. Every Chair whose change it carried is told why. Only a release that published (baking or live) is taken back. Recorded as yours, for him.",
             move |o, i: shipping::release_run::RevertReleaseInput| {

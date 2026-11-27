@@ -317,22 +317,22 @@ impl Conn {
     pub async fn start<H: Handler>(o: &Options, h: Arc<H>, stderr: Option<Stderr>) -> Result<Conn, Error> {
         let (program, own_args) = o.command.split_first().ok_or(Error::NoCommand)?;
         let args: Vec<String> = own_args.iter().cloned().chain(o.args()?).collect();
-        let mut child = start_hiding(program, &args, &o.hide, &o.read_only, |cmd| {
-            if !o.cwd.is_empty() {
-                cmd.current_dir(&o.cwd);
-            }
-            let extra = [
-                "CLAUDE_CODE_ENTRYPOINT=sdk-rust".to_string(),
-                "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1".to_string(),
-            ];
-            crate::set_env(cmd, extra.iter().chain(&o.env));
-            cmd.stdin(Stdio::piped()).stdout(Stdio::piped());
-            cmd.stderr(if stderr.is_some() {
-                Stdio::piped()
-            } else {
-                Stdio::null()
-            });
-        })?;
+        let mut cmd = procgroup::command(program, &args);
+        if !o.cwd.is_empty() {
+            cmd.current_dir(&o.cwd);
+        }
+        let extra = [
+            "CLAUDE_CODE_ENTRYPOINT=sdk-rust".to_string(),
+            "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1".to_string(),
+        ];
+        crate::set_env(&mut cmd, extra.iter().chain(&o.env));
+        cmd.stdin(Stdio::piped()).stdout(Stdio::piped());
+        cmd.stderr(if stderr.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        });
+        let mut child = cmd.spawn().map_err(Error::Start)?;
         let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
             return Err(Error::Start(procgroup::Error::Io(io::Error::other(
                 "claude has no stdio pipes",
@@ -544,33 +544,6 @@ impl Drop for Forget<'_> {
     fn drop(&mut self) {
         self.shared.state().pending.remove(self.id);
     }
-}
-
-/// Starts cmd with the paths of the mask hidden from it and read-only to it; with none it starts it as any child. It does
-/// not fall back to starting cmd unisolated: a session that cannot be isolated is not a session the owner can trust with
-/// the files, so the error says what the host lacks.
-fn start_hiding(
-    program: &str,
-    args: &[String],
-    hide: &[String],
-    read_only: &[String],
-    configure: impl FnOnce(&mut procgroup::Command),
-) -> Result<procgroup::Child, Error> {
-    if hide.is_empty() && read_only.is_empty() {
-        let mut cmd = procgroup::command(program, args);
-        configure(&mut cmd);
-        return cmd.spawn().map_err(Error::Start);
-    }
-    let mask = jail::Mask {
-        hide: hide.to_vec(),
-        read_only: read_only.to_vec(),
-    };
-    let isolate = |e: jail::Error| Error::Isolate(Box::new(e));
-    let mut cmd = jail::hidden_with(mask)
-        .and_then(|wrap| wrap.command(program, args))
-        .map_err(isolate)?;
-    configure(&mut cmd);
-    cmd.spawn().map_err(isolate)
 }
 
 /// Reads stdout to its end, then reaps the process: on its own, or once `close` asked, by ending its group. Then it fails

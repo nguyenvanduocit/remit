@@ -41,7 +41,7 @@ const failed = (s?: string) => s === 'failed';
   <PageSection :title="version.title" id="landing-record" data-landing-record>
     <template #aside>
       <LandingBadge :state="landing.state" />
-      <RouterLink class="inline-flex items-center gap-1 whitespace-nowrap text-blue-text hover:underline" :to="{ name: 'queues', query: { queue: queueKey(landing) } }" data-queue-link>Its queue<Icon name="arrow-right" :size="11" /></RouterLink>
+      <RouterLink v-if="landing.queue" class="inline-flex items-center gap-1 whitespace-nowrap text-blue-text hover:underline" :to="{ name: 'queues', query: { queue: queueKey({ repo: landing.repo, base: landing.queue.base }) } }" data-queue-link>Its queue<Icon name="arrow-right" :size="11" /></RouterLink>
     </template>
     <div class="flex flex-col gap-3.5">
       <Callout v-if="returned" tone="note" icon="arrow-left" data-returned>
@@ -73,7 +73,8 @@ const failed = (s?: string) => s === 'failed';
       <Markdown v-if="version.description" :text="version.description" type="quiet" data-description />
       <KeyValues>
         <dt>Lands on</dt>
-        <dd>{{ landing.repo }} · <span class="mono">{{ landing.project }} → {{ landing.base }}</span></dd>
+        <dd v-if="landing.queue">{{ landing.repo }} · <span class="mono">{{ landing.queue.project }} → {{ landing.queue.base }}</span></dd>
+        <dd v-else><span class="mono">{{ landing.repo }}</span> · in place, in the folder itself</dd>
         <dt>Version</dt>
         <dd>{{ version.number }} · <span class="mono">{{ shortSha(version.from) }}</span><template v-if="version.forked">, forked from <span class="mono">{{ shortSha(version.forked) }}</span></template></dd>
         <template v-if="landing.reverts">

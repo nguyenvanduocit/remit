@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use procgroup::Program;
 use telemetry::Child;
 use tracing::Instrument as _;
 
@@ -20,36 +21,17 @@ pub(crate) const CHECKS_DIR: &str = ".remit/checks";
 
 /// Wall time of one check.
 const DECLARED_CHECK_TIMEOUT: Duration = Duration::from_secs(5 * 60);
-/// Processor time of one check.
-const DECLARED_CHECK_CPU: Duration = Duration::from_secs(2 * 60);
 /// Bytes kept of each of a check's stdout and stderr.
 const DECLARED_CHECK_OUTPUT: usize = 64 << 10;
-/// Bytes of data a check may hold, as a program run behind the gate may (program.rs): a bundled
-/// interpreter needs room.
-const CHECK_MEMORY: u64 = 2 << 30;
 
-/// Runs a spec in a jail: `jail::run`, or what a test puts in its place.
-pub(crate) type JailRun = Arc<
-    dyn Fn(jail::Spec) -> std::pin::Pin<Box<dyn Future<Output = Result<jail::RunResult, jail::Error>> + Send>>
-        + Send
-        + Sync,
->;
-
-/// The jail a Remit that runs uses.
-pub(crate) fn the_jail() -> JailRun {
-    Arc::new(|spec| Box::pin(jail::run(spec)))
-}
-
-/// The `CheckRunner` of a Remit that runs, its declared checks in run's jail: the checks the language implies
-/// (`go_checks`), and then, only if they pass, the checks the repository declares. A repository that is not Go has none
-/// of the first and all of the second.
-pub(crate) fn run_checks(run: JailRun) -> CheckRunner {
+/// The `CheckRunner` of a Remit that runs: the checks the language implies (`go_checks`), and then, only if they pass,
+/// the checks the repository declares. A repository that is not Go has none of the first and all of the second.
+pub(crate) fn run_checks() -> CheckRunner {
     Arc::new(move |dir: String, changed: Vec<String>| {
-        let run = Arc::clone(&run);
         Box::pin(async move {
             let mut out = go_checks(&dir, &changed).await;
             if out.iter().all(|c| c.ok) {
-                out.extend(declared_checks(&run, &dir, &changed).await);
+                out.extend(declared_checks(&dir, &changed).await);
             }
             out
         })
@@ -74,12 +56,12 @@ impl Drop for Scratch {
     }
 }
 
-/// Runs the checks the repository at dir declares in `CHECKS_DIR`, one after another in name order, each in a jail of its
-/// own, and stops at the first that fails. A check sees the repository read-only, and the paths the change touched in the
-/// file REMIT_CHANGED names, one per line; its work directory is a scratch directory and it has no network. It passes when
-/// it exits 0. Nothing is skipped without a word: a file that cannot run, and a jail that cannot be built, fail the check,
-/// so a submit never passes for want of a place to run its checks.
-pub(crate) async fn declared_checks(run: &JailRun, dir: &str, changed: &[String]) -> Vec<Check> {
+/// Runs the checks the repository at dir declares in `CHECKS_DIR`, one after another in name order, each a program of its
+/// own (`procgroup::Program`), and stops at the first that fails. A check finds the repository at REMIT_REPO and the paths
+/// the change touched in the file REMIT_CHANGED names, one per line; its work directory is a scratch directory. It passes
+/// when it exits 0. Nothing is skipped without a word: a file that cannot run, and a program that cannot be started, fail
+/// the check, so a submit never passes for want of a place to run its checks.
+pub(crate) async fn declared_checks(dir: &str, changed: &[String]) -> Vec<Check> {
     let failed = |output: String| {
         vec![Check {
             command: CHECKS_DIR.to_owned(),
@@ -113,7 +95,7 @@ pub(crate) async fn declared_checks(run: &JailRun, dir: &str, changed: &[String]
     }
     let mut out = Vec::new();
     for e in &runnable {
-        let ck = run_declared(run, dir, &scratch.0, &changed_file, e).await;
+        let ck = run_declared(dir, &scratch.0, &changed_file, e).await;
         let failed = !ck.ok;
         out.push(ck);
         if failed {
@@ -135,7 +117,7 @@ fn write_private(p: &Path, text: &str) -> std::io::Result<()> {
 }
 
 /// Runs one declared check, the entry e of `CHECKS_DIR`.
-async fn run_declared(run: &JailRun, dir: &str, scratch: &Path, changed_file: &Path, e: &std::fs::DirEntry) -> Check {
+async fn run_declared(dir: &str, scratch: &Path, changed_file: &Path, e: &std::fs::DirEntry) -> Check {
     let name = e.file_name().to_string_lossy().into_owned();
     let mut ck = Check {
         command: format!("{CHECKS_DIR}/{name}"),
@@ -164,16 +146,13 @@ async fn run_declared(run: &JailRun, dir: &str, scratch: &Path, changed_file: &P
         format!("REMIT_CHANGED={}", path_str(changed_file)),
     ];
     let argv = vec![path_str(&Path::new(dir).join(CHECKS_DIR).join(&name))];
-    let scratch = path_str(scratch);
-    jailed(run, ck, argv, &scratch, &scratch, dir, env).await
+    run_check(ck, argv, scratch, scratch, env).await
 }
 
-/// Runs line, the command check of a key result (ADR-0068), with sh in the worktree dir: in the jail a declared check
-/// runs in, no network, its own scratch directory for HOME and TMPDIR, and the worktree writable, as a build or a test
-/// writes there, but its .git: the server runs git in the worktree, and git runs what .git names (hooks, fsmonitor), so
-/// a check that changed it would run code outside the jail. The check's line is the Chair's, whose sessions write the
-/// worktree already. It passes when it exits 0.
-pub(crate) async fn command_check(run: &JailRun, dir: &str, line: &str) -> Check {
+/// Runs line, the command check of a key result (ADR-0068), with sh in the worktree dir, as a declared check runs, with
+/// its own scratch directory for HOME and TMPDIR. The check's line is the Chair's, whose sessions write the worktree
+/// already. It passes when it exits 0.
+pub(crate) async fn command_check(dir: &str, line: &str) -> Check {
     let ck = Check {
         command: line.to_owned(),
         ..Check::default()
@@ -188,62 +167,38 @@ pub(crate) async fn command_check(run: &JailRun, dir: &str, line: &str) -> Check
         }
     };
     let argv = vec!["/bin/sh".to_owned(), "-c".to_owned(), line.to_owned()];
-    jailed(
-        run,
-        ck,
-        argv,
-        dir,
-        &path_str(&scratch.0),
-        &path_str(&Path::new(dir).join(".git")),
-        vec![format!("REMIT_REPO={dir}")],
-    )
-    .await
+    run_check(ck, argv, Path::new(dir), &scratch.0, vec![format!("REMIT_REPO={dir}")]).await
 }
 
-/// Runs argv as check ck in a jail: in work_dir, with scratch as its HOME and TMPDIR, the two paths it writes, kept
-/// read-only (inside work_dir or not), env added to a fixed PATH, and the time, processor, memory and output limits of a
-/// check. It runs in a span of its own under the work that runs it (`remit.child`), which it is told of (ADR-0119), and
-/// which records how it ended.
-async fn jailed(
-    run: &JailRun,
-    mut ck: Check,
-    argv: Vec<String>,
-    work_dir: &str,
-    scratch: &str,
-    kept: &str,
-    env: Vec<String>,
-) -> Check {
+/// Runs argv as check ck in work_dir, with scratch as its HOME and TMPDIR, env added to a fixed PATH, and the time and
+/// output limits of a check. It runs in a span of its own under the work that runs it (`remit.child`), which it is told of
+/// (ADR-0119), and which records how it ended.
+async fn run_check(mut ck: Check, argv: Vec<String>, work_dir: &Path, scratch: &Path, env: Vec<String>) -> Check {
     let child = Child::open(&ck.command, "");
+    let scratch = path_str(scratch);
     let mut full = vec![
         "PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin".to_owned(),
         format!("HOME={scratch}"),
         format!("TMPDIR={scratch}"),
     ];
     full.extend(env);
-    let full = child.tell(full);
-    let mut read_only = jail::system_paths();
-    read_only.push(kept.to_owned());
-    let spec = jail::Spec {
+    let program = Program {
         argv,
-        dir: work_dir.to_owned(),
-        // a declared check's scratch is its work directory, writable already
-        writable: if scratch == work_dir {
-            Vec::new()
-        } else {
-            vec![scratch.to_owned()]
-        },
-        env: full,
-        read_only,
-        timeout: DECLARED_CHECK_TIMEOUT,
-        max_output: DECLARED_CHECK_OUTPUT,
-        memory_bytes: CHECK_MEMORY,
-        cpu: DECLARED_CHECK_CPU,
-        ..jail::Spec::default()
+        dir: work_dir.to_path_buf(),
+        env: child.tell(full),
+        proxy: None,
     };
-    match run(spec).instrument(child.span().clone()).await {
+    match program
+        .run(procgroup::Limits {
+            timeout: DECLARED_CHECK_TIMEOUT,
+            max_output: DECLARED_CHECK_OUTPUT,
+        })
+        .instrument(child.span().clone())
+        .await
+    {
         Err(err) => {
             child.failed();
-            ck.output = format!("the jail could not run it: {err}");
+            ck.output = format!("could not be started: {err}");
         }
         Ok(res) => {
             child.ended(res.exit_code, res.timed_out);

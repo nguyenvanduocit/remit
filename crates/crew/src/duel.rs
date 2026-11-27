@@ -103,7 +103,7 @@ pub(crate) fn contest_refusal(c: &Card, ch: &Chain, duels: &[Duel]) -> Option<St
         return Some(format!("card {} is in a duel already: a card is contested once", c.id));
     }
     let in_worktree = |path: &str| c.cwd == path || c.cwd.starts_with(&format!("{path}{MAIN_SEPARATOR}"));
-    ch.repos.iter().find(|r| !r.path.is_empty() && in_worktree(&r.path)).map(|r| {
+    ch.repos.iter().find(|r| !r.dir().is_empty() && in_worktree(r.dir())).map(|r| {
         format!(
             "card {} works in the worktree of {}, where a sibling would write the same files: contest work done in the chain's directory",
             c.id, r.repo

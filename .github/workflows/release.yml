@@ -72,10 +72,6 @@ jobs:
         run: |
           git config --global user.name ci
           git config --global user.email ci@invalid
-      - name: Allow the user namespaces the jail makes
-        # ubuntu-24.04 restricts unprivileged user namespaces through AppArmor, and the jail (ADR-0021) makes one for every
-        # agent session: without this the jail, agent and claudecode tests fail with "permission denied".
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # Formatting needs no build: checked first, a badly formatted push fails in seconds rather than after the build.
       - run: cargo fmt --all --check
       - uses: Swatinem/rust-cache@v2

@@ -48,7 +48,7 @@ impl Targets {
             .collect();
     }
 
-    /// The main session child and Remit's jail supervisors belong to the existing whole-session stop path.
+    /// The main session child and any process of Remit's own binary belong to the existing whole-session stop path.
     pub(crate) fn mark(&mut self, rows: &mut [SessionProcess], system: &System) {
         let remit = remit_executable();
         let mut shown = HashSet::new();

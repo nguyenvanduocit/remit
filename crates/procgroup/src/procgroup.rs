@@ -23,6 +23,9 @@ pub enum Error {
     /// written.
     #[error("procgroup: the program was not detached ({status}): {stderr}")]
     NotDetached { status: ExitStatus, stderr: String },
+    /// A program was given no argv to run.
+    #[error("procgroup: no program to run: argv is empty")]
+    NoProgram,
 }
 
 /// A command that leads its own process group: when its `Child` is dropped before the command was reaped (the caller's
@@ -134,20 +137,19 @@ impl DerefMut for Child {
 
 impl Drop for Child {
     fn drop(&mut self) {
-        // id() is None once the leader was reaped: its pid, and so the group's id, may then be another process's, and
-        // nothing is killed: only a command still running is cancelled.
-        // A pid past i32 is not one the kernel hands out; there is then no group to kill.
-        if let Some(pid) = self
-            .inner
-            .id()
-            .and_then(|id| i32::try_from(id).ok())
-            .and_then(Pid::from_raw)
-        {
-            #[expect(
-                clippy::let_underscore_must_use,
-                reason = "drop has no caller to tell; ESRCH means the group already ended, which is what was wanted"
-            )]
-            let _ = kill_process_group(pid, Signal::KILL);
-        }
+        kill_group(self);
+    }
+}
+
+/// Kills the whole group of c with SIGKILL while its leader is not reaped. id() is None once the leader was reaped: its
+/// pid, and so the group's id, may then be another process's, and nothing is killed: only a command still running is
+/// ended. A pid past i32 is not one the kernel hands out; there is then no group to kill.
+pub(crate) fn kill_group(c: &Child) {
+    if let Some(pid) = c.inner.id().and_then(|id| i32::try_from(id).ok()).and_then(Pid::from_raw) {
+        #[expect(
+            clippy::let_underscore_must_use,
+            reason = "no caller acts on it; ESRCH means the group already ended, which is what was wanted"
+        )]
+        let _ = kill_process_group(pid, Signal::KILL);
     }
 }

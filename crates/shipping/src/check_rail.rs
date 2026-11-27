@@ -9,7 +9,7 @@ use tracing::Instrument as _;
 
 use crate::Shipping;
 use crate::land::{not_open_text, work_named};
-use crate::repochecks::{JailRun, command_check};
+use crate::repochecks::command_check;
 use crate::state_check::check_target;
 use chains::chain_core::optional;
 use chains::outbox::by_remit;
@@ -97,13 +97,13 @@ impl Shipping {
         Ok((kr, why))
     }
 
-    /// Runs the command check c of chain ch in the worktree it names, in the jail run, and records the run as a
-    /// decision: why the chain may not finish when it fails, "" when it passes. A check that cannot run fails: a finish
-    /// never passes for want of a place to run.
-    pub(crate) async fn command_refusal(&self, run: &JailRun, ch: &Chain, c: &Check) -> String {
+    /// Runs the command check c of chain ch in the worktree it names, and records the run as a decision: why the chain
+    /// may not finish when it fails, "" when it passes. A check that cannot run fails: a finish never passes for want of a
+    /// place to run.
+    pub(crate) async fn command_refusal(&self, ch: &Chain, c: &Check) -> String {
         let ck = match work_named(&ch.repos, &c.repo).and_then(|i| ch.repos.get(i)) {
             Some(rw) => {
-                command_check(run, &rw.path, &c.name)
+                command_check(rw.dir(), &c.name)
                     .instrument(tracing::info_span!(attr::CHECKS_SPAN, { attr::CHAIN_ID } = %ch.id))
                     .await
             }

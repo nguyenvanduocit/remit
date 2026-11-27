@@ -2,8 +2,8 @@
 //! correlation attributes of that work, added to its resource, so whatever the child reports or passes on (a request to a
 //! product it deploys, a log it prints) leads back to the chain. Its service stays its own: a check or a release step may
 //! run the customer's product, whose telemetry keeps its name. These names carry ids, never a credential: the Datadog key
-//! stays in the server, and no endpoint or token to export to is given here (a jailed child has no way to Remit's `/otlp`
-//! door; building one is the ADR's *Revisit when*).
+//! stays in the server, and no endpoint or token to export to is given here (a way for a child to export to Remit's
+//! `/otlp` door is the ADR's *Revisit when*).
 
 /// The variable a child's resource attributes are in, as OpenTelemetry's SDKs read it.
 const RESOURCE: &str = "OTEL_RESOURCE_ATTRIBUTES";

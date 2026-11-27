@@ -18,10 +18,6 @@ pub struct AgentFlags {
     pub claude_cmd: String,
     /// The Claude Code config dir of the agents, prepared by `agent_home::prepare`.
     pub claude_home: String,
-    /// The paths that hold Remit's secrets, which no session can read.
-    pub hide: Vec<String>,
-    /// The paths the server runs from, which a session can read and cannot change.
-    pub read_only: Vec<String>,
 }
 
 impl AgentFlags {
@@ -51,7 +47,7 @@ pub struct ServerConfig {
     /// This binary, which the AI runtime is started from.
     pub executable: PathBuf,
     pub agents: AgentFlags,
-    /// Where the owner key is kept, hidden from every agent session.
+    /// Where the owner key is kept.
     pub owner_key_file: PathBuf,
     /// Google sign-in for the owner beside the owner key (ADR-0105); none: off.
     pub google: Option<crate::google_signin::Setup>,
@@ -172,6 +168,7 @@ pub fn configure(f: Flags, home: &Path) -> Result<(ServerConfig, orch::Config), 
             assistant_effort: f.assistant_effort.clone(),
             assistant_dir: data.join("assistant"),
             repos_dir: data.join("repos"),
+            folders_dir: data.join("folders"),
             library_dir: data.join("library"),
             secret_key_file: PathBuf::from(&f.secret_key_file),
             key_backup_dir: PathBuf::from(&f.key_backup_dir),
@@ -200,10 +197,9 @@ pub fn configure(f: Flags, home: &Path) -> Result<(ServerConfig, orch::Config), 
         jira,
         memory_models: Some(Arc::new(crate::ports::OpenRouterModels(openrouter))),
         updater: updater_of(&f, &f.releases_dir()),
-        release_steps: orch::ReleaseSteps::Jailed(orch::JailRunner::new()),
+        release_steps: orch::ReleaseSteps::Programs(orch::ProgramRunner::new()),
         ..orch::Config::default()
     };
-    let (hide, read_only) = f.protected_from_agents();
     let server = ServerConfig {
         addr,
         link,
@@ -212,8 +208,6 @@ pub fn configure(f: Flags, home: &Path) -> Result<(ServerConfig, orch::Config), 
         agents: AgentFlags {
             claude_cmd: f.agent_cmd.clone(),
             claude_home: f.agent_home().display().to_string(),
-            hide,
-            read_only,
         },
         owner_key_file: PathBuf::from(&f.owner_key_file),
         google: crate::google_signin::setup(&f)?,

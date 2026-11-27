@@ -186,7 +186,7 @@ pub fn round_judge_prompt(kr: &KeyResult, contenders: &[Contender<'_>], earlier:
                 .repos
                 .iter()
                 .find(|rw| rw.repo == l.repo)
-                .map_or("", |rw| rw.path.as_str());
+                .map_or("", |rw| rw.dir());
             b.push_str(&format!(
                 "- Version {} of {}: {}\n  Its worktree: {dir}; the version is commit {}, forked from {}.\n  Its description: {}\n",
                 l.version.number, l.repo, l.version.title, l.version.from, l.version.forked, l.version.description
@@ -469,7 +469,9 @@ impl Shipping {
                 LandingState::Ready => format!(
                     "Version {} of {} is your round's pick: it is in the queue for {}, and you hear when it lands.\nThe \
                      judge's why: {why}",
-                    l.version.number, l.repo, l.base
+                    l.version.number,
+                    l.repo,
+                    l.base()
                 ),
                 _ => format!(
                     "Version {} of {} was not picked and does not land: {why}\nYour attempt is done: finish the chain \
@@ -483,8 +485,8 @@ impl Shipping {
             {
                 tracing::warn!(landing = %l.id, %err, "an attempt's Chair was not told what its round did");
             }
-            if l.state == LandingState::Ready {
-                self.kick_queue(l.queue());
+            if let (LandingState::Ready, Some(q)) = (&l.state, l.queue.clone()) {
+                self.kick_queue(q);
             }
         }
         Ok(())

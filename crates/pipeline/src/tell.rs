@@ -4,7 +4,7 @@
 //! Chair reads the event as evidence, with the words of outsiders in a fence they cannot close. Each firing is one reading
 //! and one message, in the one step that stores the firing, the subscription's progress and the decision the owner reads.
 
-use model::{Actor, Card, Chain, ChainStatus, DecisionKind, Landing, SignalKey};
+use model::{Actor, Card, Chain, ChainStatus, DecisionKind, Landing, RepoWork, SignalKey};
 
 use crate::Pipeline;
 use crate::action_params::{PARAM_AUTHOR, PARAM_CHAIN, PARAM_QUOTE, PARAM_SUMMARY, params_of};
@@ -70,11 +70,12 @@ fn host_of(c: &Chain, landings: &[Landing], marks: &[String]) -> String {
     let landed = landings
         .iter()
         .filter(|l| l.chain_id == c.id && [&l.push, &l.commit].into_iter().flatten().any(|m| marks.contains(m)))
-        .map(|l| l.host.clone());
+        .filter_map(|l| l.queue.as_ref().map(|q| q.host.clone()));
     c.repos
         .iter()
-        .filter(|rw| marks.contains(&rw.branch))
-        .map(|rw| rw.host.clone())
+        .filter_map(RepoWork::worktree)
+        .filter(|w| marks.contains(&w.branch))
+        .map(|w| w.host.clone())
         .chain(landed)
         .find(|h| !h.is_empty())
         .unwrap_or_default()

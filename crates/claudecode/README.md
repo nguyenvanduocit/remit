@@ -1,9 +1,8 @@
 # claudecode
 
 Runs one Claude Code process and speaks its SDK protocol over the `claude` CLI's stdin and stdout. It is our own client:
-no SDK or Claude API library. The process inherits only the environment `childenv` names, runs jailed from the paths
-`Options::hide` and `Options::read_only` list (`jail`), and leads its own process group, which ends whole on `close`
-(`procgroup`, ADR-0018).
+no SDK or Claude API library. The process inherits only the environment `childenv` names, runs with the machine user's
+files and network (ADR-0138), and leads its own process group, which ends whole on `close` (`procgroup`, ADR-0018).
 
 - `Conn` (conn.rs): start, initialize, send a user message, interrupt, set model and permission mode, close, done.
 - `Options` (options.rs): the command line and the initialize request.

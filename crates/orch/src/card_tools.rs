@@ -43,9 +43,12 @@ use model::CheckKind;
 use model::JudgeKind;
 use model::Origin;
 use model::Time;
+use model::WorkPlace;
 use model::by_agent;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use chains::git::short;
+use shipping::folder::RestoreInput;
 use shipping::gate::VerdictInput;
 use shipping::goal::ReadCheckInput;
 use shipping::land::LandInput;
@@ -87,9 +90,9 @@ struct AskChairInput {
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 struct OpenRepoInput {
-    /// the repository by its remote: host/project (github.com/owner/name), a remote URL, or the absolute path of a
-    /// checkout (its origin names it); a repository Remit holds a clone of is also named by its project path or last
-    /// element, e.g. customerfns
+    /// a folder worked in place: its absolute path (or ~/path). Or a repository of a forge, by its remote:
+    /// host/project (github.com/owner/name) or a remote URL; one Remit holds a clone of is also named by its project path
+    /// or last element, e.g. customerfns
     repo: String,
 }
 
@@ -240,21 +243,29 @@ fn add_change_tools(svc: &Arc<Orchestrator>, t: &mut Tools, card: &Card, me: &Se
     let m = me.clone();
     t.serving(svc).add(
         "open_repo", Effect::Writes,
-        "Open a repository for this chain: a git worktree on a branch only this chain uses, from the repository's default branch. Name it by its remote (host/group/project), a remote URL or a checkout path; a short name (its last path element, or group/project) is looked up in this chain's project's repositories first, then in the clones Remit holds. Remit clones the repository the first time. Returns its path; give that path as cwd to the agents who change code there. Agents commit there; they never push.",
+        "Open a repository for this chain. Give the absolute path of a folder on this machine (a project, notes, a script directory, a git repository or not) to work in it in place: the agents change the folder itself, the owner sees every edit as it is written, and Remit keeps checkpoints of it outside it (taken now and at each land, restorable with restore_checkpoint). No forge, clone, branch, push or merge queue is involved; a folder is held by one chain at a time, and the user may keep editing it. Or name a repository of a forge by its remote (host/group/project) or a remote URL (a short name, its last path element or group/project, is looked up in this chain's project's repositories first, then in the clones Remit holds): Remit clones it the first time and gives the chain a git worktree on a branch only this chain uses, from the repository's default branch; agents commit there and never push. Returns its path; give that path as cwd to the agents who change code there.",
         move |o, i: OpenRepoInput| {
             let m = m.clone();
             async move {
                 let me = m.read(&o).await?;
                 need_plan(&me)?;
                 let rw = o.shipping.open_repo(&me, &i.repo).await?;
-                Ok(format!("Opened {} at {} on branch {} (base {}).", rw.repo, rw.path, rw.branch, rw.base))
+                Ok(match &rw.place {
+                    WorkPlace::Worktree(w) => {
+                        format!("Opened {} at {} on branch {} (base {}).", rw.repo, w.path, w.branch, w.base)
+                    }
+                    WorkPlace::Folder { path, opened } => format!(
+                        "Opened {path} in place (checkpoint {}). Give {path} as cwd to the agents who change it; there is no branch to commit on, and land records a checkpoint of the folder for the judges.",
+                        short(opened)
+                    ),
+                })
             }
         },
     );
     let m = me.clone();
     t.serving(svc).add(
         "land", Effect::Writes,
-        "Land the chain's work on a repository: Remit commits anything left, refuses CI/secret files, runs the checks on the worktree's head (Go: build the module, vet and test the changed packages, and the repository's .remit/checks), and records the version as a landing. It waits there for independent review (record_verdict), including security when required. Give qc_reason only when a separate QC verdict is needed for a distinct verification task. When the required gates approve, it enters the repository's merge queue: Remit combines it with the base as one commit, checks it again with what lands beside it, and pushes it to the base itself; the forge's pipeline on it is followed and a push that breaks a green base is reverted. Each step reaches you as a message; the first starts with \"[land result\". A version with exposure is a stage of a canary: give guardrail_key, breach, bake_minutes and rollback, and it lands only once the stage before it baked and every guardrail holds. On failure it says what to fix; fix it and land again.",
+        "Land the chain's work on a repository. For a folder worked in place: Remit takes a checkpoint of the folder and records the change since the last approved checkpoint as a landing, refuses CI/secret files, and waits for independent review (record_verdict) as below; once the required gates approve, the version is landed (its files are already in the folder: no checks, merge queue or push run) and is the base of the next version. For a repository of a forge: Remit commits anything left, refuses CI/secret files, runs the checks on the worktree's head (Go: build the module, vet and test the changed packages, and the repository's .remit/checks), and records the version as a landing. It waits there for independent review (record_verdict), including security when required. Give qc_reason only when a separate QC verdict is needed for a distinct verification task. When the required gates approve, it enters the repository's merge queue: Remit combines it with the base as one commit, checks it again with what lands beside it, and pushes it to the base itself; the forge's pipeline on it is followed and a push that breaks a green base is reverted. Each step reaches you as a message; the first starts with \"[land result\". A version with exposure is a stage of a canary: give guardrail_key, breach, bake_minutes and rollback, and it lands only once the stage before it baked and every guardrail holds. On failure it says what to fix; fix it and land again.",
         move |o, i: LandInput| {
             let m = m.clone();
             async move {
@@ -265,6 +276,21 @@ fn add_change_tools(svc: &Arc<Orchestrator>, t: &mut Tools, card: &Card, me: &Se
                     "Landing. The checks run in the background; the result arrives as a message starting with {}.",
                     result_heading(&rw.repo)
                 ))
+            }
+        },
+    );
+    let m = me.clone();
+    t.serving(svc).add(
+        "restore_checkpoint", Effect::Writes,
+        "Take a folder worked in place back to one of its checkpoints, saying why: Remit writes the checkpoint's files back and removes the files made since, then takes a checkpoint of the result. It refuses, naming the file and writing nothing, when a file it would overwrite changed since the newest checkpoint (the owner's own edit). With no checkpoint it lists the folder's checkpoints, newest first, with their ids. A change made by the restore is judged by land like any other. For a repository of a forge, use revert_landing.",
+        move |o, i: RestoreInput| {
+            let m = m.clone();
+            async move {
+                let me = m.read(&o).await?;
+                if !i.chain.is_empty() && i.chain != me.home {
+                    return Err(Error::refused("restore_checkpoint takes back this chain's own folder: leave chain empty"));
+                }
+                o.shipping.restore_checkpoint(by_agent(&me.id), &me.home, i).await
             }
         },
     );

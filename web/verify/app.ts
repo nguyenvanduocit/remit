@@ -56,7 +56,7 @@ const LANDS: Record<string, [repo: string, title: string, state: LandingState['k
   arch: [['remit', 'chore: rename the sync fields', 'ready']],
 };
 const landingsOf = (c: Chain): Landing[] => (LANDS[c.id] ?? []).map(([name, title, state], i) =>
-  landingRecord({ id: `ln_${c.id}_${i}`, chainId: c.id, repo: `g/${name}`, host: 'gitlab.example.com', version: { number: 1, title, verdicts: ['v1', 'v2'] },
+  landingRecord({ id: `ln_${c.id}_${i}`, chainId: c.id, repo: `g/${name}`, version: { number: 1, title, verdicts: ['v1', 'v2'] },
     state: { kind: state } as LandingState, createdAt: iso(now - 40 * MIN),
     ...(state === 'landed' ? { commit: 'c0ffee12', push: 'c0ffee12', landedAt: iso(now - 20 * MIN), checks: { state: 'passed', failed: '' } } : { readyAt: iso(now - 10 * MIN) }) }));
 // Each repository as the server lays it out: its queue being checked, then ready, then what landed; a version still judged

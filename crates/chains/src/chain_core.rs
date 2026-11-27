@@ -117,6 +117,9 @@ pub struct Config {
     pub assistant_dir: PathBuf,
     /// Where Remit keeps its own clone of each repository a chain opens, as `<host>/<project>` (repo.rs).
     pub repos_dir: PathBuf,
+    /// Where Remit keeps the shadow Git directory of each folder a chain works in place, outside the folder
+    /// (checkpoint.rs, ADR-0137).
+    pub folders_dir: PathBuf,
     /// A landing publishes only a change its required gates approved.
     pub require_approvals: bool,
     /// How long a finished chain keeps its worktrees after it last changed (archive.rs

@@ -14,6 +14,7 @@ use model::{
     Checks, ChecksState, DecisionKind, Gate, Grant, GrantHolder, HolderKind, Landing, LandingState, Reading, Release,
     ReleaseGuard, ReleaseState, SignalKey, by_owner,
 };
+use procgroup::{Limits, Program, Ran};
 use shipping::release::Connection;
 use shipping::release_run::{ReleasePauseInput, StepRunner};
 use shipping::remit_facts::{Instance, InstanceHealth};
@@ -25,11 +26,11 @@ const GUARD: &str = "fact:remit.health";
 /// The repository the test server runs (-update-repo), the one `chain_seeded` makes.
 const HERE: &str = "github.com/OWNER/remit";
 
-/// Runs no program: records each step's spec and exits as told, in order (0 once told nothing), a step that exits 0
+/// Runs no program: records each step's program and exits as told, in order (0 once told nothing), a step that exits 0
 /// saying it published version 1.0.0.
 #[derive(Default)]
 struct Steps {
-    ran: Mutex<Vec<jail::Spec>>,
+    ran: Mutex<Vec<Program>>,
     exits: Mutex<VecDeque<i32>>,
 }
 
@@ -40,7 +41,7 @@ impl Steps {
             ..Self::default()
         })
     }
-    fn ran(&self) -> Vec<jail::Spec> {
+    fn ran(&self) -> Vec<Program> {
         self.ran.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
 }
@@ -52,8 +53,9 @@ impl StepRunner for Steps {
         _repo: &str,
         _c: &[Connection],
         home: &Path,
-        spec: jail::Spec,
-    ) -> Result<jail::RunResult, String> {
+        program: Program,
+        _limits: Limits,
+    ) -> Result<Ran, String> {
         let exit = self
             .exits
             .lock()
@@ -67,8 +69,8 @@ impl StepRunner for Steps {
             )
             .unwrap();
         }
-        self.ran.lock().unwrap_or_else(PoisonError::into_inner).push(spec);
-        Ok(jail::RunResult {
+        self.ran.lock().unwrap_or_else(PoisonError::into_inner).push(program);
+        Ok(Ran {
             stdout: format!("exited {exit}"),
             stderr: String::new(),
             exit_code: exit,
@@ -254,9 +256,10 @@ async fn a_breached_release_runs_back_reverts_and_releases_forward_with_no_turn(
         ],
         "the server's environment is not a step's"
     );
-    let scratch = Path::new(publish.writable.first().unwrap()).parent().unwrap();
+    let home = publish.env.iter().find_map(|v| v.strip_prefix("HOME=")).unwrap();
+    let scratch = Path::new(home).parent().unwrap();
     assert!(
-        Path::new(&publish.dir).starts_with(scratch),
+        publish.dir.starts_with(scratch),
         "a step works in its own checkout"
     );
 

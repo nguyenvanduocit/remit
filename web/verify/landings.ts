@@ -5,6 +5,7 @@
 // - /chains/ch_billing/landings: a version sent back for a conflict, one taken back by the pipeline and its revert, a canary
 //   stage being checked, a version on the web app still being judged (?landing=<id> opens one, ?file=<path> a file);
 //   /chains/ch_web/landings?landing=ln_wb: an attempt waiting for its round's pick.
+// - /chains/ch_notes/landings?landing=ln_n1: a folder worked in place: landed with no queue, no branch, no base.
 // - /chains/ch_cache/landings?landing=ln_k1: a landed change being taken back by a revert still being combined (ln_rk1).
 // - /releases?repo=acme/api: a release baking, one live, one taken back by a guardrail, one with nothing new, the first;
 //   ?repo=acme/web: a release waiting on a credential under a held pause.

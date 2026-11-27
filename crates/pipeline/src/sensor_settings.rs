@@ -24,7 +24,7 @@ use model::ChangeKind;
 use model::ChangedField;
 use reach::grants::{connection_in, connection_names};
 
-/// The most script sensors one chain runs: each runs a script in the jail on every period, a standing use of the host.
+/// The most script sensors one chain runs: each runs a script on every period, a standing use of the host.
 const CHAIN_SENSORS_MAX: usize = 20;
 /// The longest note a sensor may carry.
 const SENSOR_NOTE_MAX: usize = 200;

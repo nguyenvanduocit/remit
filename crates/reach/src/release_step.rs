@@ -1,8 +1,7 @@
 //! The way out of a step of a repository's release (ADR-0116, form T1): the connections its `.remit/release/connections`
 //! names, each through the grant its repository holds, served by one injecting proxy made for the step and closed when
 //! it ends. The credential is in the proxy, in this process: the step's environment holds none (shipping builds it with
-//! the release's variables alone), its files are its checkout and its scratch directory, and what the runner adds is the
-//! way to the proxy and the certificate of its authorities, which has no key. Its output is scrubbed of every
+//! the release's variables alone), and what the runner adds is the way to the proxy and the certificate of its authorities, which has no key. Its output is scrubbed of every
 //! credential the proxy holds.
 //!
 //! Each connection is answered by the grant crate's one rule (`grant::decide`), the repository the holder: a read it
@@ -10,16 +9,16 @@
 //! undone and the proxy cannot tell one write from another. A lower grant reaches it as a script does, by reads.
 
 use std::path::Path;
-use std::time::Duration;
 
 use egress::{InjectConfig, Injector, Scrub, Upstream};
+use procgroup::{Limits, Program};
 use grant::{Action, Decision, Effect, decide};
 use model::{GrantHolder, HolderKind};
 use source::{BoxError, Output};
 
 use crate::Reach;
 use crate::grants::grants_of;
-use crate::program::{GATE_MAX_TUNNELS, JailRunner, ProxyEnd, run_behind};
+use crate::program::{GATE_MAX_TUNNELS, ProgramRunner, ProxyEnd, run_behind};
 
 /// The file the proxy's authorities are written to, in the step's scratch directory.
 const STEP_CA_FILE: &str = "remit-release-ca.pem";
@@ -106,25 +105,24 @@ impl Reach {
     }
 }
 
-impl JailRunner {
-    /// Runs spec, a step of a release, with way its only way out: one injecting proxy for every connection, its
-    /// authorities written to the step's scratch directory (`home`, writable) and named in the variables clients read.
-    /// What the step printed comes back scrubbed of every credential.
+impl ProgramRunner {
+    /// Runs program, a step of a release, under limits, with way the proxy it reaches its connections through: one
+    /// injecting proxy for every connection, its authorities written to the step's scratch directory (`home`) and named
+    /// in the variables clients read. What the step printed comes back scrubbed of every credential.
     pub async fn run_release_step(
         &self,
-        spec: jail::Spec,
+        program: Program,
         home: &Path,
         way: &StepWay,
-        deadline: Duration,
+        limits: Limits,
     ) -> Result<Output, BoxError> {
         let upstreams = way.upstreams.clone();
         let authority = home.join(STEP_CA_FILE);
-        let mut out = run_behind(spec, |socket, mut spec| async move {
+        let mut out = run_behind(program, limits, |mut program| async move {
             let proxy = Injector::new(
-                &socket,
                 InjectConfig {
                     upstreams,
-                    deadline,
+                    deadline: limits.timeout,
                     max_bytes: STEP_MAX_BYTES,
                     max_requests: STEP_REQUESTS,
                     max_tunnels: GATE_MAX_TUNNELS,
@@ -139,12 +137,12 @@ impl JailRunner {
                 return Err(e.into());
             }
             let file = authority.to_string_lossy().into_owned();
-            let mut env = crate::program::without(&spec.env, &AUTHORITY_VARS);
+            let mut env = crate::program::without(&program.env, &AUTHORITY_VARS);
             env.extend(AUTHORITY_VARS.iter().map(|name| format!("{name}={file}")));
             env.push("NODE_USE_ENV_PROXY=1".to_owned());
-            spec.env = env;
+            program.env = env;
             let end: Box<dyn ProxyEnd> = Box::new(proxy);
-            Ok((end, spec))
+            Ok((end, program))
         })
         .await?;
         out.stdout = way.scrubbed(&out.stdout);

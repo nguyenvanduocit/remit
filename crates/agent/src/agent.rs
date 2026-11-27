@@ -129,9 +129,6 @@ pub struct Spec {
     pub tools: Option<Vec<String>>,
     /// The skills the model may use, by canonical name (plugin:skill). Empty gives none.
     pub skills: Vec<String>,
-    /// The paths the session reads and cannot change, beside the launcher's own: a judge whose ceiling holds no write
-    /// tool lists its worktree here (ADR-0032).
-    pub read_only: Vec<String>,
     /// Directories Claude Code loads as plugins: where the skills above come from.
     pub plugins: Vec<String>,
     /// Added to Claude Code's own system prompt. A resumed session takes the text it is given now.

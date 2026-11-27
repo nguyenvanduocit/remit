@@ -24,7 +24,6 @@ pub(crate) fn session_spec(session_id: &str, spec: &Spec) -> runtime::SessionSpe
         ask_tools: spec.ask_tools.clone(),
         tools: spec.tools.clone(),
         skills: spec.skills.clone(),
-        read_only: spec.read_only.clone(),
         plugins: spec.plugins.clone(),
         system_append: spec.system_append.clone(),
         resume: spec.resume.clone(),

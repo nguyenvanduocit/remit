@@ -1,9 +1,7 @@
 use std::convert::Infallible;
 use std::future::Future;
 use std::io;
-use std::net::{IpAddr, SocketAddr};
-use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -15,7 +13,7 @@ use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::service::service_fn;
 use hyper_util::rt::{TokioIo, TokioTimer};
-use tokio::net::{TcpStream, UnixListener};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
@@ -69,8 +67,6 @@ pub enum Error {
     Config(&'static str),
     #[error("egress: listen: {0}")]
     Listen(#[source] io::Error),
-    #[error("egress: socket mode: {0}")]
-    SocketMode(#[source] io::Error),
     #[error("egress: injector: {0}")]
     Injector(String),
 }
@@ -90,10 +86,10 @@ impl Config {
     }
 }
 
-/// A forward proxy on a unix socket. Make one with `Gate::new` and end it with `close`; dropping it stops it too, without
-/// waiting.
+/// A forward proxy on a port of the loopback address. Make one with `Gate::new` and end it with `close`; dropping it stops
+/// it too, without waiting.
 pub struct Gate {
-    socket: PathBuf,
+    addr: SocketAddr,
     pub(crate) inner: Arc<Inner>,
 }
 
@@ -117,15 +113,15 @@ struct State {
 }
 
 impl Gate {
-    /// Starts a Gate on a new unix socket at path (the file must not exist; put it in a directory only the server's user
-    /// can enter). It runs on the current tokio runtime until `close` is called or it is dropped.
-    pub async fn new(path: &Path, cfg: Config) -> Result<Gate, Error> {
-        start(path, cfg, None).await
+    /// Starts a Gate on a free port of 127.0.0.1, which any process of the machine can reach while it runs (ADR-0138).
+    /// It runs on the current tokio runtime until `close` is called or it is dropped.
+    pub async fn new(cfg: Config) -> Result<Gate, Error> {
+        start(cfg, None).await
     }
 
-    /// The path of the unix socket: the value for the jail's socket.
-    pub fn socket(&self) -> &Path {
-        &self.socket
+    /// The address the Gate listens on: the proxy a program is pointed at (`procgroup::Program::proxy`).
+    pub fn addr(&self) -> SocketAddr {
+        self.addr
     }
 
     /// What the Gate refused so far, each target and reason once with how often. At most 64 distinct pairs are kept; a
@@ -134,19 +130,13 @@ impl Gate {
         self.inner.denied.all()
     }
 
-    /// Stops the Gate: the socket is closed, every tunnel is ended and the call returns when none is left running. It may
+    /// Stops the Gate: the port is closed, every tunnel is ended and the call returns when none is left running. It may
     /// be called again.
     pub async fn close(&self) {
         self.inner.lock().closed = true;
         self.inner.token.cancel();
         self.inner.tracker.close();
         self.inner.tracker.wait().await;
-        // The socket file is unlinked on close; tokio's listener does not do it.
-        #[expect(
-            clippy::let_underscore_must_use,
-            reason = "close reports nothing: a second close finds the file gone, and a file left behind is reported by the next bind of the path"
-        )]
-        let _ = std::fs::remove_file(&self.socket);
     }
 }
 
@@ -157,10 +147,10 @@ impl Drop for Gate {
 }
 
 /// `Gate::new`, for a Gate that injects when inj is set.
-pub(crate) async fn start(path: &Path, cfg: Config, inject: Option<Injection>) -> Result<Gate, Error> {
+pub(crate) async fn start(cfg: Config, inject: Option<Injection>) -> Result<Gate, Error> {
     let policy = cfg.validate()?;
-    let listener = UnixListener::bind(path).map_err(Error::Listen)?;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).map_err(Error::SocketMode)?;
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.map_err(Error::Listen)?;
+    let addr = listener.local_addr().map_err(Error::Listen)?;
     let resolver = cfg.resolver.clone().unwrap_or_else(|| Arc::new(SystemResolver));
     let inner = Arc::new(Inner {
         cfg,
@@ -188,10 +178,7 @@ pub(crate) async fn start(path: &Path, cfg: Config, inject: Option<Injection>) -
                 .spawn(async move { conn.serve_connection(stream, None).await });
         }
     });
-    Ok(Gate {
-        socket: path.to_path_buf(),
-        inner,
-    })
+    Ok(Gate { addr, inner })
 }
 
 impl Inner {
@@ -359,7 +346,7 @@ pub(crate) fn full(b: Bytes) -> Body {
 #[cfg(test)]
 pub(crate) mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::{TcpListener, UnixStream};
+    use tokio::net::TcpListener;
 
     use super::*;
 
@@ -372,11 +359,6 @@ pub(crate) mod tests {
             max_tunnels: 16,
             resolver: None,
         }
-    }
-
-    /// A short socket path: a unix socket path is limited to about 100 bytes.
-    pub(crate) fn socket_path(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("eg-{}-{name}.sock", std::process::id()))
     }
 
     /// A plain HTTP server on loopback that answers every request with its path, and records each request as it arrived,
@@ -406,9 +388,9 @@ pub(crate) mod tests {
         (addr, seen)
     }
 
-    /// What a program's HTTP client sends a plain-HTTP proxy, over the gate's socket; the whole answer comes back.
+    /// What a program's HTTP client sends a plain-HTTP proxy, over the gate's port; the whole answer comes back.
     async fn ask_through(g: &Gate, method: &str, url: &str, host: &str) -> String {
-        let mut c = UnixStream::connect(g.socket()).await.unwrap();
+        let mut c = TcpStream::connect(g.addr()).await.unwrap();
         c.write_all(format!("{method} {url} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").as_bytes())
             .await
             .unwrap();
@@ -421,8 +403,7 @@ pub(crate) mod tests {
     async fn a_plain_http_request_to_an_allowed_host_is_forwarded_and_any_other_is_refused() {
         let (site, _) = origin().await;
         let (elsewhere, elsewhere_seen) = origin().await;
-        let path = socket_path("fwd");
-        let g = Gate::new(&path, base_config(&[&site])).await.unwrap();
+        let g = Gate::new(base_config(&[&site])).await.unwrap();
 
         let got = ask_through(&g, "GET", &format!("http://{site}/page"), &site).await;
         assert!(
@@ -490,15 +471,9 @@ pub(crate) mod tests {
             false,
         );
         let writes = upstream(&format!("http://{write_site}"), "X-Api-Key", TOKEN_B, true);
-        let twice = crate::Injector::new(
-            &socket_path("inj-twice"),
-            inject_config(vec![reads.clone(), reads.clone()]),
-        )
-        .await;
+        let twice = crate::Injector::new(inject_config(vec![reads.clone(), reads.clone()])).await;
         assert!(twice.is_err(), "two upstreams on one host and port started");
-        let inj = crate::Injector::new(&socket_path("inj-two"), inject_config(vec![reads, writes]))
-            .await
-            .unwrap();
+        let inj = crate::Injector::new(inject_config(vec![reads, writes])).await.unwrap();
 
         let got = ask_through(&inj, "GET", &format!("http://{read_site}/dash"), &read_site).await;
         assert!(

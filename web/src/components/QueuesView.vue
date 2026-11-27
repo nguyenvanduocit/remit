@@ -50,7 +50,7 @@ const toLanding = (l: Landing) => ({ name: 'chain', params: { id: l.chainId, tab
           <Icon class="mt-[3px] flex-none text-blue-mark" name="merge" :size="12" />
           <h2 :id="`queue-${queueKey(q)}`" class="flex min-w-0 flex-1 flex-col">
             <Tip :text="queueName(q)" when-clipped><span class="mono truncate text-[12.5px] font-semibold text-text">{{ queueName(q) }}</span></Tip>
-            <span v-if="q.landings[0]" class="truncate text-[11px] font-normal text-mut">{{ q.landings[0].host }}</span>
+            <span v-if="q.landings[0]" class="truncate text-[11px] font-normal text-mut">{{ q.landings[0].queue?.host }}</span>
           </h2>
           <Badge variant="quiet" size="count" class="flex-none">{{ q.landings.length }}</Badge>
         </div>

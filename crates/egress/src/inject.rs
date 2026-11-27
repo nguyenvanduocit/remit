@@ -1,4 +1,4 @@
-//! The injecting mode (ADR-0018, form T1; ADR-0116, *Credentials*): the same unix-socket proxy as the Gate, but its
+//! The injecting mode (ADR-0018, form T1; ADR-0116, *Credentials*): the same loopback proxy as the Gate, but its
 //! destinations are the connections of one run and it does not tunnel to them. A CONNECT, or a request in absolute form,
 //! names a connection by its host and port; the injector ends the program's TLS itself with a certificate made for that
 //! connection in this run, reads every request, applies that connection's rules (inject_rules: reads only, or writes as
@@ -14,7 +14,6 @@
 use std::error::Error as StdError;
 use std::future::Future;
 use std::ops::Deref;
-use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -130,9 +129,9 @@ pub(crate) struct Destination {
 }
 
 impl Injector {
-    /// Starts an Injector on a new unix socket at path, under the rules of `Gate::new`. It makes a certificate authority
+    /// Starts an Injector on a free port of 127.0.0.1, under the rules of `Gate::new`. It makes a certificate authority
     /// for each upstream of the run; `certificate_pem` is what a program trusts.
-    pub async fn new(path: &Path, cfg: InjectConfig) -> Result<Injector, Error> {
+    pub async fn new(cfg: InjectConfig) -> Result<Injector, Error> {
         let (inj, ca_pem) = new_injection(&cfg).map_err(Error::Injector)?;
         let gate_cfg = Config {
             allow: inj.destinations.iter().map(|d| d.target.to_string()).collect(),
@@ -142,7 +141,7 @@ impl Injector {
             max_tunnels: cfg.max_tunnels,
             resolver: cfg.resolver.clone(),
         };
-        let gate = start(path, gate_cfg, Some(inj)).await?;
+        let gate = start(gate_cfg, Some(inj)).await?;
         Ok(Injector { gate, ca_pem })
     }
 

@@ -190,7 +190,7 @@ fn verification_goal(parent: &Chain, request: &str) -> String {
         parent.title, parent.workdir
     );
     for rw in &parent.repos {
-        b.push_str(&format!("- {}: worktree {}, branch {}\n", rw.repo, rw.path, rw.branch));
+        b.push_str(&format!("- {}: {}\n", rw.repo, rw.where_words()));
     }
     b
 }

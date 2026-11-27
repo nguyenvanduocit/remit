@@ -165,7 +165,7 @@ fn grant_detail(by: &str, chain_title: &str, ask: &GrantAsk, protected: bool) ->
         )
     } else if env {
         format!(
-            "{by}, the Chair of the chain {}, asks to **run programs** with the credential of the {} connection {}. The program holds the credential in its environment, inside a jail that reaches only that connection's address, and the agent never sees it. What keeps the program from writing is the credential's own rights, not Remit's code: **Apply only if this credential is read-only.**",
+            "{by}, the Chair of the chain {}, asks to **run programs** with the credential of the {} connection {}. The program holds the credential in its environment and the agent never sees it; Remit points its HTTP clients at a gate that reaches only that connection's address, but the program can connect around it. What keeps the program from writing is the credential's own rights, not Remit's code: **Apply only if this credential is read-only.**",
             code_span(chain_title),
             code_span(&ask.source),
             code_span(&ask.connection)

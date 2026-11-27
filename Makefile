@@ -50,8 +50,7 @@ build: web
 # Two tiers. `test-changed` is what every change runs (below). `test` is the whole of it, under a minute: the contract
 # check, the Rust workspace formatted, every workspace lint held and its tests, the web typecheck and tests; CI runs
 # it. The suite holds only the tests that matter most (AGENTS.md, *Evidence and verification*): the compiler and the
-# lints carry the rest. `--all-targets` leaves doctests out. A `harness = false` test (the jail's, whose
-# main must own the process) runs as it is written. The client core is built with the wasm-dev profile here
+# lints carry the rest. `--all-targets` leaves doctests out. The client core is built with the wasm-dev profile here
 # (WASM_PROFILE=wasm-dev, as make dev does): the tests need its behaviour, not its size; `make web` builds pkg/web small again. test's parts share
 # nothing but the client core, so it builds that first and runs them side by side; -j is passed here, not set for the
 # whole Makefile, as `make deps build test` must still run in order. --output-sync keeps each part's output in one piece.

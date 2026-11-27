@@ -4,7 +4,9 @@
 
 pub mod carried;
 pub mod check_rail;
+pub mod checkpoint;
 pub mod direct_push;
+pub mod folder;
 pub mod gate;
 pub mod goal;
 pub mod hire;
@@ -26,6 +28,7 @@ pub mod revert;
 pub mod round;
 pub mod seeded;
 mod service;
+pub mod shadow;
 pub mod stage;
 pub mod state_check;
 pub mod verification;

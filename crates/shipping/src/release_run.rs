@@ -1,7 +1,7 @@
 //! Releases' shell (ADR-0116): one runner per repository at a time, in memory, so one release of a repository runs at
 //! once. A pass reads the repository's landings and releases and does what the rule (release.rs) says: it bakes the one
 //! that bakes, runs again the one its steps left waiting, or starts the next. A release's steps run in name order in a
-//! fresh checkout of its commit, each in a jail of its own, through the `StepRunner` the server gives (the injecting
+//! fresh checkout of its commit, each a program of its own, through the `StepRunner` the server gives (the injecting
 //! proxy to the connections the procedure names, through the grants its repository holds); on the repository this
 //! server runs, `install_release` is one more step. A breach (a step that fails, the forge's checks gone red, a guard
 //! breached while it bakes) is taken back in code with no turn: the `back` steps run (or the previous release is
@@ -16,6 +16,7 @@ use std::sync::PoisonError;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use procgroup::{Limits, Program, Ran};
 use model::{
     Actor, DecisionKind, Landing, Release, ReleaseLift, ReleasePause, ReleaseState, ReleaseStep, RevertCause, by_remit,
 };
@@ -46,21 +47,17 @@ use tracing::Instrument;
 pub(crate) const RELEASER: &str = "release";
 /// Wall time of one step: a wasm build, or the forge's workflow a step waits for, takes tens of minutes.
 const STEP_TIMEOUT: Duration = Duration::from_secs(60 * 60);
-/// Processor time of one step.
-const STEP_CPU: Duration = Duration::from_secs(30 * 60);
 /// Bytes kept of each of a step's stdout and stderr.
 const STEP_OUTPUT: usize = 64 << 10;
 /// Bytes of what a step's output is cut to in its record.
 const STEP_KEPT: usize = 4000;
-/// Bytes of data a step may hold: a build needs room.
-const STEP_MEMORY: u64 = 4 << 30;
 /// The step install_release is recorded as, on the repository this server runs.
 const INSTALL_STEP: &str = "install_release";
 
-/// The port a release's step reaches the outside through (ADR-0116). The server fills it: a step with no connection
-/// runs in the jail with no network; one with connections behind the injecting proxy, each through the grant its
-/// repository holds, the proxy's authorities written to `home` (the step's HOME, writable). An error is a step that
-/// could not be run (no grant, no credential, no jail): the release waits and is tried again, nothing is taken back.
+/// The port a release's step runs through (ADR-0116). The server fills it: a step with no connection runs as it is;
+/// one with connections behind the injecting proxy, each through the grant its repository holds, the proxy's authorities
+/// written to `home` (the step's HOME). An error is a step that could not be run (no grant, no credential, no proxy):
+/// the release waits and is tried again, nothing is taken back.
 #[async_trait]
 pub trait StepRunner: Send + Sync {
     async fn run_step(
@@ -68,8 +65,9 @@ pub trait StepRunner: Send + Sync {
         repo: &str,
         connections: &[Connection],
         home: &Path,
-        spec: jail::Spec,
-    ) -> Result<jail::RunResult, String>;
+        program: Program,
+        limits: Limits,
+    ) -> Result<Ran, String>;
 }
 
 /// Where a release published is told to the outside (ADR-0119: Datadog's deployment event). The server fills it; it never
@@ -170,24 +168,21 @@ fn step_name(path: &str) -> String {
     path.strip_prefix(crate::gate::RELEASE_DIR).unwrap_or(path).to_owned()
 }
 
-/// The jail spec of the step at path of a checkout, with env, its HOME at home.
-fn step_spec(checkout: &str, home: &str, path: &str, env: Vec<String>) -> jail::Spec {
-    let mut read_only = jail::system_paths();
-    // git runs what .git names (hooks, fsmonitor) when the server uses the checkout: a step does not write it
-    read_only.push(format!("{checkout}/.git"));
-    jail::Spec {
+/// The program of the step at path of a checkout, with env.
+fn step_program(checkout: &str, path: &str, env: Vec<String>) -> Program {
+    Program {
         argv: vec![format!("{checkout}/{path}")],
-        dir: checkout.to_owned(),
-        writable: vec![home.to_owned()],
+        dir: PathBuf::from(checkout),
         env,
-        read_only,
-        timeout: STEP_TIMEOUT,
-        max_output: STEP_OUTPUT,
-        memory_bytes: STEP_MEMORY,
-        cpu: STEP_CPU,
-        ..jail::Spec::default()
+        proxy: None,
     }
 }
+
+/// The limits every step runs under.
+const STEP_LIMITS: Limits = Limits {
+    timeout: STEP_TIMEOUT,
+    max_output: STEP_OUTPUT,
+};
 
 impl Shipping {
     /// Has repo's release runner run now: started when none runs, told to go again when one does.
@@ -224,7 +219,7 @@ impl Shipping {
         };
         let repos: BTreeSet<&str> = landings
             .iter()
-            .filter(|l| l.on_base() && l.release.is_none())
+            .filter(|l| l.queue.is_some() && l.on_base() && l.release.is_none())
             .map(|l| l.repo.as_str())
             .chain(releases.iter().filter(|r| r.open()).map(|r| r.repo.as_str()))
             .collect();
@@ -292,13 +287,13 @@ impl Shipping {
         // one base is released: the one the repository's newest landing went to
         let Some(base) = landings
             .iter()
-            .filter(|l| l.on_base())
+            .filter(|l| l.queue.is_some() && l.on_base())
             .max_by_key(|l| l.landed_at)
-            .map(|l| l.base.clone())
+            .map(|l| l.base().to_owned())
         else {
             return Ok(false);
         };
-        let on_base: Vec<Landing> = landings.into_iter().filter(|l| l.base == base).collect();
+        let on_base: Vec<Landing> = landings.into_iter().filter(|l| l.base() == base).collect();
         let (k, at_head) = self.release_run(repo, |r| (r.k, r.at_head));
         let Some(due) = next_release(&on_base, &releases, k, at_head, self.now()) else {
             return Ok(false);
@@ -316,8 +311,8 @@ impl Shipping {
         let rel = Release {
             id: new_id("rl_"),
             repo: repo.to_owned(),
-            host: top.host.clone(),
-            project: top.project.clone(),
+            host: top.host().to_owned(),
+            project: top.project().to_owned(),
             base,
             commit,
             top: top.id.clone(),
@@ -352,8 +347,8 @@ impl Shipping {
     /// The clone of l's repository Remit holds.
     fn clone_of(&self, l: &Landing) -> String {
         path_str(&self.clone_dir(&RepoRemote {
-            host: l.host.clone(),
-            project: l.project.clone(),
+            host: l.host().to_owned(),
+            project: l.project().to_owned(),
         }))
     }
 
@@ -478,7 +473,7 @@ impl Shipping {
     /// rel's procedure does not parse (why): it is re-aimed at what landed since, which may fix it (`reaim`), or waits
     /// saying why, the chains whose landings changed `.remit/release/` told once.
     async fn reaim_or_wait(&self, mut rel: Release, landings: &[Landing], why: &str) -> Result<bool, String> {
-        let on_base: Vec<Landing> = landings.iter().filter(|l| l.base == rel.base).cloned().collect();
+        let on_base: Vec<Landing> = landings.iter().filter(|l| l.base() == rel.base).cloned().collect();
         let more = reaim(&on_base, self.now());
         if let Some(top) = more.last() {
             (rel.top, rel.commit) = (top.id.clone(), top.commit.clone().unwrap_or_default());
@@ -547,11 +542,11 @@ impl Shipping {
             // The step runs in a span of its own, named by its release, which it is told of (ADR-0119).
             let child = Child::open(path, &rel.id);
             let env = child.tell(step_env(rel, &home, &out, breached));
-            let spec = step_spec(&checkout, &home, path, env);
+            let program = step_program(&checkout, path, env);
             let ran = match self.steps.as_ref() {
                 Some(steps) => {
                     steps
-                        .run_step(&rel.repo, &proc.connections, &scratch.home(), spec)
+                        .run_step(&rel.repo, &proc.connections, &scratch.home(), program, STEP_LIMITS)
                         .instrument(child.span().clone())
                         .await
                 }

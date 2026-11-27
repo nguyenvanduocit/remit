@@ -1,7 +1,7 @@
 //! The merge queue's shell (ADR-0114): one runner per queue (a repository's host, path and base) at a time, in memory, so
 //! one writer moves a base. A pass reads the queue, takes the next batch (landing.rs), combines each landing on the base
 //! the forge holds as one squashed commit made by the account the forge's CLI is logged in as, checks the combined tree
-//! in the jail and pushes it through the `Lander`. Each step is recorded before the next acts outside: the batch is
+//! and pushes it through the `Lander`. Each step is recorded before the next acts outside: the batch is
 //! recorded combining before it is combined, and checking, with the commits and the push it makes, before the push, so a
 //! restart finds a push that reached the base and records it landed, and puts any other back in the queue. What the
 //! queue records is caused by Remit, in no chain, so a chain's own watches on its landings hear it. A landing whose work a
@@ -21,14 +21,14 @@ use crate::Shipping;
 use crate::direct_push::DirectPush;
 use crate::landing::{Lander, Pushed, grown, halved, next_batch, taken_back};
 use crate::repo::slug;
-use crate::repochecks::{run_checks, the_jail};
+use crate::repochecks::run_checks;
 use chains::Result;
 use chains::apply::Records;
 use chains::chain_core::{first_line, new_id};
 use chains::fact::{FactValue, fact_write, keys};
 use chains::git::{RepoRemote, git, path_str, repo_command, short, tail};
 use chains::live::LandingWrite;
-use chains::step::{ChainCmd, WorkCmd};
+use chains::step::{ChainCmd, WorkCmd, keep_record};
 
 /// Who the queue acts as, in what it records.
 pub(crate) const QUEUE: &str = "queue";
@@ -197,7 +197,7 @@ impl Shipping {
             .filter(|l| l.state == LandingState::Ready && l.version.plan.is_some())
         {
             let vetted = match (self.chain(&l.chain_id).await, l.version.plan.as_ref()) {
-                (Ok(chain), Some(plan)) => self.vet_stage(&chain, &l.host, &l.project, plan).await,
+                (Ok(chain), Some(plan)) => self.vet_stage(&chain, l.host(), l.project(), plan).await,
                 (Err(err), _) => Err(err),
                 (Ok(_), None) => Ok(()),
             };
@@ -394,7 +394,7 @@ impl Shipping {
             Merged::Conflict(paths) => {
                 let said = format!(
                     "combined with {} at {} it conflicts in: {}",
-                    l.base,
+                    l.base(),
                     short(top),
                     paths.join(", ")
                 );
@@ -468,7 +468,7 @@ impl Shipping {
         let mut paths: Vec<String> = batch.iter().flat_map(|l| l.version.paths.clone()).collect();
         paths.sort();
         paths.dedup();
-        let runner = self.checks.clone().unwrap_or_else(|| run_checks(the_jail()));
+        let runner = self.checks.clone().unwrap_or_else(|| run_checks());
         let ran = runner(dir.clone(), paths).await;
         git(clone, &["worktree", "remove", "--force", &dir]).await.ok();
         match ran.iter().find(|c| !c.ok) {
@@ -569,7 +569,7 @@ impl Shipping {
                     chain: chain_id.clone(),
                     landing: l.id.clone(),
                     repo: l.repo.clone(),
-                    base: l.base.clone(),
+                    base: l.base().to_owned(),
                     commit: commit.clone(),
                     paths: l.version.paths.clone(),
                     ..FactValue::default()
@@ -586,7 +586,7 @@ impl Shipping {
                         "Found {} version {} on {} at {}, landed outside the queue: {}.",
                         l.repo,
                         l.version.number,
-                        l.base,
+                        l.base(),
                         short(&commit),
                         l.version.title
                     )
@@ -595,12 +595,12 @@ impl Shipping {
                         "Landed {} version {} on {} as {}: {}.",
                         l.repo,
                         l.version.number,
-                        l.base,
+                        l.base(),
                         short(&commit),
                         l.version.title
                     )
                 } else {
-                    format!("Reverted on {} as {}: {}.", l.base, short(&commit), l.version.title)
+                    format!("Reverted on {} as {}: {}.", l.base(), short(&commit), l.version.title)
                 };
                 rec.decisions.push(crate::land::decided(
                     &self.chair_of(&chain_id).await,
@@ -659,25 +659,26 @@ impl Shipping {
         let Some(rw) = chain.repos.iter().find(|rw| rw.repo == l.repo) else {
             return;
         };
-        let head = git(&rw.path, &["rev-parse", "HEAD"]).await.unwrap_or_default();
-        let clean = git(&rw.path, &["status", "--porcelain"])
+        let Some(w) = rw.worktree() else { return };
+        let head = git(&w.path, &["rev-parse", "HEAD"]).await.unwrap_or_default();
+        let clean = git(&w.path, &["status", "--porcelain"])
             .await
             .is_ok_and(|s| s.is_empty());
         let Some(commit) = l.commit.as_deref().filter(|_| head == l.version.from && clean) else {
             return;
         };
         let merged = async {
-            let who = self.pusher(rw).await.map_err(|e| e.to_string())?;
-            git(&rw.path, &["fetch", "-q", "origin", &l.base]).await?;
+            let who = self.pusher(w).await.map_err(|e| e.to_string())?;
+            git(&w.path, &["fetch", "-q", "origin", l.base()]).await?;
             let (name, email) = (format!("user.name={}", who.name), format!("user.email={}", who.email));
             git(
-                &rw.path,
+                &w.path,
                 &["-c", &name, "-c", &email, "merge", "-q", "--no-edit", commit],
             )
             .await
         };
         if let Err(err) = merged.await {
-            git(&rw.path, &["merge", "--abort"]).await.ok();
+            git(&w.path, &["merge", "--abort"]).await.ok();
             tracing::warn!(landing = %l.id, %err, "queue: the worktree was not brought up to what landed");
         }
     }
@@ -709,11 +710,11 @@ impl Shipping {
                  worktree and land again if it changes what your change means; the queue returns your version if the two \
                  conflict.",
                 l.version.title,
-                l.base,
+                l.base(),
                 short(l.commit.as_deref().unwrap_or_default()),
                 other.version.number,
                 shared.iter().map(|p| p.as_str()).collect::<Vec<_>>().join(", "),
-                l.base
+                l.base()
             );
             if let Err(err) = self
                 .write_on_chain(&other.chain_id, &other.repo, text, Records::default())
@@ -839,7 +840,7 @@ impl Shipping {
         }
         let cmd = ChainCmd::Work(WorkCmd {
             repo: repo.to_owned(),
-            edit: Arc::new(|_| Ok(())),
+            edit: keep_record(),
             tell,
         });
         self.apply(id, cmd, rec).await.map(|_| ())
@@ -865,7 +866,7 @@ pub(crate) async fn fork_point(clone: &str, l: &Landing) -> Result<String, Strin
     if !l.version.forked.is_empty() {
         return Ok(l.version.forked.clone());
     }
-    git(clone, &["merge-base", &l.version.from, &format!("origin/{}", l.base)]).await
+    git(clone, &["merge-base", &l.version.from, &format!("origin/{}", l.base())]).await
 }
 
 async fn is_ancestor(dir: &str, a: &str, b: &str) -> bool {

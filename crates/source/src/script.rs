@@ -1,5 +1,5 @@
 //! Scripts, the form T1 of ADR-0018: an agent runs a script for batch or repeated work on a system and never holds its
-//! credential. The script runs in a jail (the Runner, as for a program) whose only way out is a proxy that checks each request
+//! credential. The script runs (the Runner, as for a program) with its HTTP clients sent to a proxy that checks each request
 //! and adds the connection's credential before it goes on: the script cannot print what it never had. What the proxy lets
 //! through is the source's statement (`InjectSpec`): GET anywhere under the connection's address, POST only where the source
 //! says a POST reads. That the script only reads is enforced by the proxy's method and path rules, and is said so wherever it
@@ -36,7 +36,7 @@ pub const SCRIPT_TOOL: &str = "script";
 pub const SCRIPT_ENFORCED: &str =
     "Enforced: proxy (method and path allow-list; read-only is not the credential's rights)";
 
-/// Under the call's deadline, so the jail ends the script and says so before the gate's deadline does.
+/// Under the call's deadline, so the runner ends the script and says so before the gate's deadline does.
 pub(crate) const SCRIPT_TIMEOUT: Duration = Duration::from_secs(25);
 const SCRIPT_MAX_CODE: usize = 64 << 10;
 /// Requests one run may make, refused ones included.
@@ -293,7 +293,6 @@ impl Set {
             ],
             dir: dir.path().to_path_buf(),
             egress: Vec::new(),
-            read_only: Vec::new(),
             inject: Some(InjectJob {
                 base: spec.base.clone(),
                 headers: spec.headers.clone(),
@@ -465,12 +464,12 @@ fn script_description(set: &Set, ks: &[Kind], languages: &[&str]) -> String {
         }
     }
     format!(
-        "Run a script for batch or repeated work against the API of a source, without ever holding its credential: it runs in a jail whose only way out is a proxy that checks each request and adds the connection's credential, \
+        "Run a script for batch or repeated work against the API of a source, without ever holding its credential: its HTTP clients go through a proxy that checks each request and adds the connection's credential, \
 so the credential is not in its environment, its files or its output. Write it in one of: {}. The connection's address is in the environment variable API_BASE: call it with the language's own HTTP client \
 (HTTPS_PROXY and the proxy's certificate authority are already set; Authorization is added for you, and one you send is replaced) and print the result to stdout. \
 Use it when no typed tool answers or the work is a loop over many calls; a typed tool comes first. Sources and what each allows:{sources}\
 \nRefused, and named in the answer: any other method, a path with .. or an encoded slash or dot, another host, a redirect to another host (never followed), more than {SCRIPT_REQUESTS} requests, a request body over {} MiB, an answer over {} MiB. \
-The script sees no file but its own scratch directory and ends after {}. stdout and stderr are cut at {OUTPUT_MAX} bytes, tokens are removed and email addresses are masked. \
+The script starts in a scratch directory of its own and ends after {}. stdout and stderr are cut at {OUTPUT_MAX} bytes, tokens are removed and email addresses are masked. \
 {SCRIPT_ENFORCED}. Needs a read on the connection (the chain's capability gives it, except on a protected connection, which needs a read grant the owner gave). {FROM_OUTSIDE}",
         languages.join(", "),
         SCRIPT_BODY >> 20,

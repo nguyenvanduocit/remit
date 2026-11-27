@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use model::{Actor, Chain, ChainStatus, Cleanup, DecisionKind, RepoWork, Time};
+use model::{Actor, Chain, ChainStatus, Cleanup, DecisionKind, RepoWork, Time, Worktree};
 
 use crate::apply::Records;
 use crate::chain_core::Core;
@@ -40,10 +40,11 @@ const RESTORE_TIMEOUT: Duration = Duration::from_secs(180);
 #[derive(Debug, Clone, PartialEq)]
 struct Garbage {
     chain_id: String,
-    rw: RepoWork,
+    repo: String,
+    w: Worktree,
 }
 
-/// The worktrees to remove by now: those of finished chains (archived or not) unchanged for keep, with no landing on its
+/// The worktrees to remove by now (a folder worked in place is the user's, never removed): those of finished chains (archived or not) unchanged for keep, with no landing on its
 /// way (`landing`, the ids of chains with one) and no submit in progress, except a path another chain still names. None
 /// when keep is zero.
 fn collectible(chains: &[Chain], landing: &HashSet<String>, now: Time, keep: Duration) -> Vec<Garbage> {
@@ -59,18 +60,21 @@ fn collectible(chains: &[Chain], landing: &HashSet<String>, now: Time, keep: Dur
     let kept: HashSet<PathBuf> = chains
         .iter()
         .filter(|c| !done(c))
-        .flat_map(|c| c.repos.iter().map(|rw| clean(&rw.path)))
+        .flat_map(|c| c.repos.iter().filter_map(RepoWork::worktree).map(|w| clean(&w.path)))
         .collect();
     chains
         .iter()
         .filter(|c| done(c))
         .flat_map(|c| {
-            c.repos.iter().map(|rw| Garbage {
-                chain_id: c.id.clone(),
-                rw: rw.clone(),
+            c.repos.iter().filter_map(|rw| {
+                rw.worktree().map(|w| Garbage {
+                    chain_id: c.id.clone(),
+                    repo: rw.repo.clone(),
+                    w: w.clone(),
+                })
             })
         })
-        .filter(|g| !kept.contains(&clean(&g.rw.path)))
+        .filter(|g| !kept.contains(&clean(&g.w.path)))
         .collect()
 }
 
@@ -86,19 +90,19 @@ async fn exists(path: &str) -> bool {
 
 /// Detaches a chain's worktree from its clone and deletes it, only while it is the chain's own: a worktree on another
 /// branch may be another chain's or the owner's. One already gone is not an error.
-async fn remove_worktree(rw: &RepoWork) -> Result<(), String> {
-    if !exists(&rw.path).await {
+async fn remove_worktree(w: &Worktree) -> Result<(), String> {
+    if !exists(&w.path).await {
         return Ok(());
     }
     tokio::time::timeout(REMOVE_TIMEOUT, async {
-        own_worktree(rw).await?;
-        let common = git(&rw.path, &["rev-parse", "--path-format=absolute", "--git-common-dir"]).await?;
-        git(&common, &["worktree", "remove", "--force", &rw.path])
+        own_worktree(w).await?;
+        let common = git(&w.path, &["rev-parse", "--path-format=absolute", "--git-common-dir"]).await?;
+        git(&common, &["worktree", "remove", "--force", &w.path])
             .await
             .map(|_| ())
     })
     .await
-    .map_err(|_| format!("removing {} took over {}", rw.path, seconds_text(REMOVE_TIMEOUT)))?
+    .map_err(|_| format!("removing {} took over {}", w.path, seconds_text(REMOVE_TIMEOUT)))?
 }
 
 impl Core {
@@ -199,8 +203,8 @@ impl Core {
     /// directory stays while anything in it was left.
     pub async fn clean_up(&self, c: &Cleanup) -> Result<(), String> {
         let mut left = Vec::new();
-        for rw in &c.repos {
-            if let Err(err) = remove_worktree(rw).await {
+        for (rw, w) in c.repos.iter().filter_map(|rw| rw.worktree().map(|w| (rw, w))) {
+            if let Err(err) = remove_worktree(w).await {
                 left.push(format!("worktree of {} kept: {err}", rw.repo));
             }
         }
@@ -237,18 +241,18 @@ impl Core {
         };
         let keep = self.cfg.keep_worktrees;
         for g in collectible(&chains, &landing, now, keep) {
-            if !exists(&g.rw.path).await {
+            if !exists(&g.w.path).await {
                 continue;
             }
-            if let Err(err) = remove_worktree(&g.rw).await {
-                tracing::warn!(chain = %g.chain_id, path = %g.rw.path, %err, "worktree not collected");
+            if let Err(err) = remove_worktree(&g.w).await {
+                tracing::warn!(chain = %g.chain_id, path = %g.w.path, %err, "worktree not collected");
                 continue;
             }
-            let text = format!("Remove the worktree of {} ({}).", g.rw.repo, g.rw.path);
+            let text = format!("Remove the worktree of {} ({}).", g.repo, g.w.path);
             let why = format!(
                 "The chain is finished, nothing of it waits to land, and it kept its worktree for {}. Its branch {} stays in the clone; reopening the chain brings the worktree back.",
                 seconds_text(keep),
-                g.rw.branch
+                g.w.branch
             );
             self.decide(&g.chain_id, DecisionKind::Repo, &text, &why, "", by_remit())
                 .await;
@@ -258,17 +262,17 @@ impl Core {
     /// Brings back the worktrees of reopened chain ch that `collect_worktrees` removed, each on its branch, and records each
     /// in the chain's decisions, as it records one that cannot come back.
     pub async fn restore_worktrees(&self, ch: &Chain) {
-        for rw in &ch.repos {
-            if exists(&rw.path).await {
+        for (rw, w) in ch.repos.iter().filter_map(|rw| rw.worktree().map(|w| (rw, w))) {
+            if exists(&w.path).await {
                 continue;
             }
-            let (text, why) = match self.restore_worktree(rw).await {
+            let (text, why) = match self.restore_worktree(w).await {
                 Ok(()) => (
-                    format!("Bring back the worktree of {} on branch {}.", rw.repo, rw.branch),
+                    format!("Bring back the worktree of {} on branch {}.", rw.repo, w.branch),
                     "The chain was reopened.".to_owned(),
                 ),
                 Err(err) => (
-                    format!("Could not bring back the worktree of {} ({}).", rw.repo, rw.path),
+                    format!("Could not bring back the worktree of {} ({}).", rw.repo, w.path),
                     err,
                 ),
             };
@@ -278,20 +282,20 @@ impl Core {
     }
 
     /// Checks out rw's branch again at its path, from Remit's clone of the repository.
-    async fn restore_worktree(&self, rw: &RepoWork) -> Result<(), String> {
+    async fn restore_worktree(&self, w: &Worktree) -> Result<(), String> {
         let clone = path_str(&self.clone_dir(&RepoRemote {
-            host: rw.host.clone(),
-            project: rw.project.clone(),
+            host: w.host.clone(),
+            project: w.project.clone(),
         }));
         tokio::time::timeout(RESTORE_TIMEOUT, async {
             ensure_clone(Path::new(&clone), "").await?;
             git(&clone, &["worktree", "prune"]).await?;
-            git(&clone, &["worktree", "add", &rw.path, &rw.branch])
+            git(&clone, &["worktree", "add", &w.path, &w.branch])
                 .await
                 .map(|_| ())
         })
         .await
-        .map_err(|_| format!("bringing back {} took over {}", rw.path, seconds_text(RESTORE_TIMEOUT)))?
+        .map_err(|_| format!("bringing back {} took over {}", w.path, seconds_text(RESTORE_TIMEOUT)))?
     }
 
     /// Drops what the orchestrator holds in memory for a deleted chain. Its cards' runs end with their sessions (session.rs).

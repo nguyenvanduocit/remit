@@ -57,6 +57,6 @@ export const bakeFor = (ns: number): string => span(ns / 1e6);
 
 // A queue, of a repository (its catalog id, as a landing names it) and a base: its name, and its id in the address
 // (?queue=) and on the page.
-type QueueOf = Pick<Landing, 'repo' | 'base'>;
+type QueueOf = { repo: string; base: string };
 export const queueName = (q: QueueOf): string => `${q.repo} → ${q.base}`;
 export const queueKey = (q: QueueOf): string => `${q.repo}:${q.base}`;

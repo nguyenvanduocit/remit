@@ -7,7 +7,7 @@ use std::sync::{Arc, PoisonError};
 
 use async_trait::async_trait;
 use forge::{Account, Repo};
-use model::{Checks, RepoWork, Time};
+use model::{Checks, Time, Worktree};
 
 use crate::chain_core::Core;
 use crate::{Error, Result};
@@ -78,11 +78,11 @@ pub struct ForgeAccount {
 /// Who Remit works as on each host, by host.
 pub type ForgeAccounts = HashMap<String, ForgeAccount>;
 
-/// Where rw is hosted.
-pub fn remote_of(rw: &RepoWork) -> Repo {
+/// Where the worktree w is hosted.
+pub fn remote_of(w: &Worktree) -> Repo {
     Repo {
-        host: rw.host.clone(),
-        project: rw.project.clone(),
+        host: w.host.clone(),
+        project: w.project.clone(),
     }
 }
 

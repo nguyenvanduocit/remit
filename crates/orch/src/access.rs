@@ -89,14 +89,12 @@ impl Orchestrator {
                 .await
                 .map_err(|e: store::Error| Error::refused(format!("the employee of card {}: {e}", c.id)))?;
             if policy::ceiling_read_only(&e.ceiling) {
-                spec.read_only = policy::read_only_worktrees(c, chain.as_ref());
                 spec.deny_tools
                     .extend(agent::EDIT_TOOLS.iter().map(|t| (*t).to_owned()));
                 spec.deny_tools.push("Bash".to_owned());
             }
             emp = Some(e);
         }
-        spec.read_only.extend(self.controls());
         let spec = self.crew.with_record_brief(emp.as_ref(), spec);
         Ok((spec, acc))
     }

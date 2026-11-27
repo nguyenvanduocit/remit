@@ -1,7 +1,7 @@
 # Child processes, output, secrets, foreign code
 
-Remit runs agents, their CLIs, checks and plugins as child processes, in a jail, behind an egress proxy. This is where
-a Rust mistake becomes an escape, a hang, or a leaked key. Every entrance has one owner; use it.
+Remit runs agents, their CLIs, checks and plugins as plain child processes of the user (ADR-0138); a program that
+reaches a connection goes through an egress proxy. This is where a Rust mistake becomes a hang, an orphan, or a leaked key. Every entrance has one owner; use it.
 
 ## Core question
 
@@ -13,6 +13,9 @@ a Rust mistake becomes an escape, a hang, or a leaked key. Every entrance has on
   own process group, and dropping the `Child` before it was reaped (a dropped future, a `timeout`) kills the whole group:
   the agent *and* the CLI it spawned. `Command::new` anywhere else is a `disallowed_methods` finding (clippy.toml), so
   it does not pass `cargo clippy -- -D warnings`.
+- A child program that runs to its end (a source's program or script, a repository check, a release step) or a stdio
+  server is a `procgroup::Program` (`crates/procgroup/src/program.rs`): `run(timeout, max_output)` or `start()`. It is
+  the one runner and the seam where isolation would return; never build a second one beside it.
 - Its environment is `childenv::of(parent, extra)` (`crates/childenv/src/childenv.rs:3`): an allowlist of what the
   child inherits, then the caller's own `extra`. Never pass the server's environment through whole: it holds keys.
   `env::set_var` is `unsafe` in edition 2024 and `unsafe` is forbidden: the environment is built, never mutated.
@@ -37,11 +40,11 @@ a Rust mistake becomes an escape, a hang, or a leaked key. Every entrance has on
 Close stdin (the polite stop for a CLI), wait a bounded grace period, then kill the group. Clear listeners, then drain
 tasks, then drop resources. A stop that waits forever on a stuck child is not a stop: pause and stop are rails.
 
-## The jail and egress
+## Egress
 
-- Fail closed. If the sandbox cannot be set up, the command does not run unsandboxed; it fails with one clear message.
-- One platform-neutral policy value, rendered by each OS backend (`plan_linux.rs`, `plan_darwin.rs`). A rule added for
-  one OS is added to the policy, not to one backend.
+- The gate and the injecting proxy listen on a loopback TCP port; the runner sets it as `HTTPS_PROXY` and `HTTP_PROXY`,
+  with `NO_PROXY` empty. They record a call and inject a credential; they do not confine, and a program can go around
+  them (ADR-0138).
 - An egress decision on a host name resolves it and refuses any address that is not public (loopback, private,
   link-local, metadata ranges), allowlisted names included; then connects to the address it checked, so a second DNS
   answer cannot swap it (DNS rebinding).

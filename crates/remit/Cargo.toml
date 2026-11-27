@@ -23,7 +23,6 @@ clientmcp = { path = "../clientmcp" }
 datadog = { path = "../datadog" }
 door = { path = "../door" }
 forge = { path = "../forge" }
-jail = { path = "../jail" }
 link = { path = "../link" }
 link-quic = { path = "../link-quic" }
 model = { path = "../model" }

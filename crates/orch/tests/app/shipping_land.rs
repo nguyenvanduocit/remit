@@ -10,7 +10,8 @@ use chains::forges::fake::FakeForge;
 use chains::git::CheckRunner;
 use chains::step::replace_with;
 use model::{
-    Approval, Card, Chain, Gate, Landing, LandingState, RepoWork, ReturnReason, RevertCause, Signs, Verdict, by_owner,
+    Approval, Card, Chain, Gate, Landing, LandingState, RepoWork, ReturnReason, RevertCause, Signs, Verdict, WorkPlace,
+    Worktree, by_owner,
 };
 use shipping::gate::VerdictInput;
 use shipping::land::LandInput;
@@ -84,12 +85,14 @@ pub(crate) async fn chain_seeded(
     sh(&wt, &["commit", "-q", "-m", "the change"]);
     let rw = RepoWork {
         repo: "remit".to_owned(),
-        project: PROJECT.to_owned(),
-        host: HOST.to_owned(),
-        path: s(&wt),
-        branch: "feature/mc-land".to_owned(),
-        base: "main".to_owned(),
-        ..RepoWork::default()
+        place: WorkPlace::Worktree(Worktree {
+            project: PROJECT.to_owned(),
+            host: HOST.to_owned(),
+            path: s(&wt),
+            branch: "feature/mc-land".to_owned(),
+            base: "main".to_owned(),
+        }),
+        submit: None,
     };
     r.o.shipping
         .record_work(&chain.id, "remit", replace_with(rw), Vec::new())
@@ -354,7 +357,7 @@ async fn a_carried_version_with_no_fork_point_shows_its_files_and_lands() {
     let files: Vec<&str> = diff.files.iter().map(|f| f.path.as_str()).collect();
     assert_eq!(files, vec!["hello.txt"], "its files, from where it forked");
 
-    t.r.o.shipping.kick_queue(judging.queue());
+    t.r.o.shipping.kick_queue(judging.queue.clone().unwrap());
     let landed = t
         .until(|l| l.id == judging.id, |l| l.state == LandingState::Landed)
         .await;
@@ -431,7 +434,7 @@ async fn a_deleted_chains_ready_landing_is_withdrawn_and_never_lands() {
         "{:?}",
         withdrawn.state
     );
-    t.r.o.shipping.kick_queue(withdrawn.queue());
+    t.r.o.shipping.kick_queue(withdrawn.queue.clone().unwrap());
     for _ in 0..20 {
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(t.origin_main(), t.base, "a withdrawn landing reached the base");

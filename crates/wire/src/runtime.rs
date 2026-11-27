@@ -320,7 +320,6 @@ pub struct SessionSpec {
     pub ask_tools: Vec<String>,
     pub tools: Option<Vec<String>>,
     pub skills: Vec<String>,
-    pub read_only: Vec<String>,
     pub plugins: Vec<String>,
     pub system_append: String,
     pub resume: String,

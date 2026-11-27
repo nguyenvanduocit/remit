@@ -6,10 +6,13 @@
 // protected base, a title far too long for its card, and a landing migrated from a merge request. A landed one names the
 // release that carried it (releasesSeed.ts).
 import type { Chain, FileChange, Landing, LandingQueue } from '../src/core/generated/types.generated';
-import { actorOf, chainRecord, landingRecord } from './records';
+import { actorOf, chainRecord, folderRecord, landingRecord } from './records';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
+
+// A folder worked in place (ADR-0137): its version lands with no queue, and no branch or base.
+const NOTES = '/Users/ana/notes';
 
 export const LONG_TITLE = 'feat(gateway): move every session token refresh behind the gateway so a stale refresh never logs a user out mid-checkout, with the retry budget read from the shop settings';
 
@@ -26,11 +29,12 @@ export function landingsSeed(now = Date.now()) {
     chain('ch_web', 'Roll the new checkout out to every shop'),
     chain('ch_rel', 'Backport the 429 retry to the November release'),
     chain('ch_quiet', 'Rename the zone table', 'queued'),
+    { ...chain('ch_notes', 'Rewrite the plan in the notes folder'), repos: [folderRecord(NOTES, NOTES)] },
   ];
 
   const sha = (n: number) => `${n.toString(16).padStart(4, '0')}c0ffee9a1b2c3d4e5f60718293a4b5c6d7e8f9`;
-  const api = { repo: 'acme/api', host: 'gitlab.example.com', project: 'acme/api', base: 'main' };
-  const web = { repo: 'acme/web', host: 'github.com', project: 'acme/web', base: 'main' };
+  const api = { repo: 'acme/api', queue: { host: 'gitlab.example.com', project: 'acme/api', base: 'main' } };
+  const web = { repo: 'acme/web', queue: { host: 'github.com', project: 'acme/web', base: 'main' } };
   const remit = actorOf('remit', 'queue');
 
   // The billing chain, version by version: sent back for a conflict, landed and taken back by the pipeline (with its revert),
@@ -109,7 +113,7 @@ export function landingsSeed(now = Date.now()) {
     landedAt: iso(3 * HOUR), readyAt: iso(3 * HOUR + 5 * MIN), createdAt: iso(3 * HOUR + 10 * MIN), updatedAt: iso(3 * HOUR) });
 
   // The release branch, protected against Remit's account.
-  const rel = landingRecord({ ...api, base: 'release/2026.11', id: 'ln_rel', chainId: 'ch_rel',
+  const rel = landingRecord({ ...api, queue: { ...api.queue, base: 'release/2026.11' }, id: 'ln_rel', chainId: 'ch_rel',
     state: { kind: 'returned', reason: 'refused', output: 'remote: GitLab: You are not allowed to push code to protected branches on this project.\n ! [remote rejected] 4c0ffee -> release/2026.11 (pre-receive hook declined)' },
     version: { number: 1, title: 'fix(billing): retry the webhook on 429 (backport)', from: sha(18), forked: sha(140), verdicts: ['v_r11', 'v_q11'] },
     batch: 'bt_50', onto: sha(140), readyAt: iso(70 * MIN), createdAt: iso(80 * MIN), updatedAt: iso(60 * MIN) });
@@ -119,7 +123,11 @@ export function landingsSeed(now = Date.now()) {
     version: { number: 4, title: 'feat(checkout): the new checkout for 25% of shops, attempt B', from: sha(20), forked: sha(130), verdicts: ['v_r13', 'v_q13'] },
     readyAt: iso(15 * MIN), createdAt: iso(20 * MIN) });
 
-  const all = [migrated, b1, c1, checksFailed, b2, r2, k1, w0, w1, rel, b3, c2, rk1, login, docs, long, bWeb, contending];
+  const notes = landingRecord({ id: 'ln_n1', chainId: 'ch_notes', repo: NOTES, queue: undefined, state: { kind: 'landed' },
+    version: { number: 1, title: 'docs: second draft of the plan', from: sha(30), forked: sha(29), verdicts: ['v_r20'], gates: ['reviewer'], paths: ['plan.txt', 'extra.txt'] },
+    priority: 'low', priorityWhy: 'Nothing waits on the notes.', landedAt: iso(20 * MIN), readyAt: iso(21 * MIN), createdAt: iso(25 * MIN), updatedAt: iso(20 * MIN) });
+
+  const all = [notes, migrated, b1, c1, checksFailed, b2, r2, k1, w0, w1, rel, b3, c2, rk1, login, docs, long, bWeb, contending];
   // The revert still on its way, as the server says of it (Landing::taking_back), by the revert.
   const takingBack: Record<string, string> = { [rk1.id]: k1.id };
   // Each repository's queues as the server lays them out: a version still judged or contending is in none.

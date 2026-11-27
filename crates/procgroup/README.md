@@ -9,9 +9,17 @@ pipes held by processes the command left behind.
 
 `command` is the one place a child process starts: the root `clippy.toml` (and each pure crate's copy) disallows
 `std::process::Command::new` and `tokio::process::Command::new` everywhere else, so a second way to start a child does not
-compile. A call that owns its start (the jail's helper, the AI runtime, a plugin with an empty environment) says why at its
+compile. A call that owns its start (the AI runtime, a plugin with an empty environment) says why at its
 line with `#[expect(clippy::disallowed_methods, reason = "...")]`; a test says so at the top of its file. A child's environment
 comes from `childenv::of`, never the server's whole.
+
+`Program` is the one runner every child program but a session goes through (ADR-0138): a source's program and script, a
+stdio MCP server, a repository's `.remit/checks` and a key result's command check, a release's steps. It is given the
+program's argv, work directory, whole environment (nothing of the server's is inherited) and an optional proxy address,
+which it sets in `HTTPS_PROXY`/`HTTP_PROXY` (and their lower-case forms) with `NO_PROXY` empty, in place of any the
+environment held. `run(Limits)` runs it to its end in its own process group, keeps at most `max_output` bytes of each of
+stdout and stderr and kills the whole group once `timeout` passes; `start` leaves a stdio server running for as long as
+its `Child` is held. Where isolation would return, it returns here (ADR-0138, *Revisit when*).
 
 `detach` starts a program that must outlive the server, as `remit update` restarting it does (ADR-0087, *Installing*). An
 intermediate `/bin/sh`, its own process group through `command`, starts the program in the background with no input, its

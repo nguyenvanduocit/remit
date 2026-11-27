@@ -388,8 +388,8 @@ async fn gate_of(authors: usize) -> Gate {
             .repos
             .first()
             .unwrap()
-            .path
-            .clone();
+            .dir()
+            .to_owned();
     let mut hired: Vec<Card> = Vec::new();
     for _ in 0..authors {
         let mut hire = research("");

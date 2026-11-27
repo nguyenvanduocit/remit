@@ -14,7 +14,7 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use model::{Actor, Chain, Landing, Overlap, OwnerKind, Subscription, Time};
+use model::{Actor, Chain, Landing, Overlap, OwnerKind, RepoWork, Subscription, Time};
 use signal::{ChainFacts, Effect, Input, Screen};
 use store::Tx;
 
@@ -69,8 +69,9 @@ pub(crate) fn marks_of(c: &Chain, landings: &[Landing]) -> Vec<String> {
     let mut marks: Vec<String> = c
         .repos
         .iter()
-        .filter(|rw| !rw.branch.is_empty())
-        .map(|rw| rw.branch.clone())
+        .filter_map(RepoWork::worktree)
+        .filter(|w| !w.branch.is_empty())
+        .map(|w| w.branch.clone())
         .collect();
     for l in landings.iter().filter(|l| l.chain_id == c.id) {
         marks.extend([&l.push, &l.commit].into_iter().flatten().cloned());

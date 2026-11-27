@@ -890,11 +890,14 @@ impl Orchestrator {
     /// against; the views' lock is not held, as git may take seconds.
     async fn read_changes(&self, chain_id: &str) -> Result<()> {
         let id = chain_id.to_owned();
-        let (c, approvals) = self
+        let (c, approvals, landings) = self
             .store
-            .read(move |r| Ok::<_, store::Error>((r.chain(&id)?, r.approvals(&id)?)))
+            .read(move |r| Ok::<_, store::Error>((r.chain(&id)?, r.approvals(&id)?, r.chain_landings(&id)?)))
             .await?;
-        self.views.changes.read(&c, &approvals).await;
+        self.views
+            .changes
+            .read(&c, &approvals, &landings, &self.cfg.folders_dir)
+            .await;
         Ok(())
     }
 

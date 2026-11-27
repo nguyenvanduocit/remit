@@ -18,7 +18,7 @@ to Rust. Detail lives in `references/`: load only the one the task needs.
 | async, tokio, `select!`, tasks, channels, locks, timeouts, shutdown, blocking work | `references/async.md` |
 | an error type, `?`, where to log, retries, errors an agent or the owner reads | `references/errors.md` |
 | a new type, newtype, enum, serde on stored or wire data, parsing input | `references/types-and-data.md` |
-| a child process, its output, the jail, egress, secrets, plugins | `references/processes-and-secrets.md` |
+| a child process, its output, egress, secrets, plugins | `references/processes-and-secrets.md` |
 | a compile error you do not understand, edition 2024 behaviour | `references/compiler.md` |
 | reviewing a Rust diff | `references/review.md` |
 

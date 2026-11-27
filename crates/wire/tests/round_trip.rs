@@ -58,7 +58,8 @@ fn a_landing_with_its_release_reads_across_versions() {
     let owner = json!({"kind": "owner", "who": "alexp", "via": "web"});
     let pushed = json!({
         "landing": {
-            "id": "l_1", "chainId": "c1", "repo": "pixfx-rs", "host": "github.com", "project": "acme/pixfx", "base": "main",
+            "id": "l_1", "chainId": "c1", "repo": "pixfx-rs",
+            "queue": {"host": "github.com", "project": "acme/pixfx", "base": "main"},
             "version": {"number": 2, "from": "a1b2", "forked": "f0", "change": "p9", "gates": ["reviewer", "qc"],
                 "verdicts": ["v1", "v2"], "by": ["e1"], "title": "feat: blur", "description": "Adds a blur.",
                 "paths": ["src/blur.rs"], "judged": ["j1"]},

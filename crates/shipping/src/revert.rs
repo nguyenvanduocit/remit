@@ -51,7 +51,12 @@ impl Shipping {
         by: Actor,
         why: &str,
     ) -> Result<Landing> {
-        let q = target.queue();
+        let Some(q) = target.queue.clone() else {
+            return Err(Error::refused(format!(
+                "landing {} is a version of a folder worked in place: it is taken back with restore_checkpoint",
+                target.id
+            )));
+        };
         let queue = self.store.read(move |r| r.queue_landings(&q)).await?;
         if !revertible(target, &queue) {
             return Err(Error::refused(format!(
@@ -104,7 +109,9 @@ impl Shipping {
         );
         self.write_on_chain(&target.chain_id, &target.repo, tell, rec).await?;
         tracing::info!(landing = %target.id, revert = %revert.id, %cause, by = QUEUE, "revert queued");
-        self.kick_queue(revert.queue());
+        if let Some(q) = revert.queue.clone() {
+            self.kick_queue(q);
+        }
         Ok(revert)
     }
 }

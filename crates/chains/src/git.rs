@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use model::RepoWork;
+use model::Worktree;
 use serde::Serialize;
 
 use crate::chain_core::Core;
@@ -210,27 +210,27 @@ pub fn path_str(p: &Path) -> String {
     p.to_string_lossy().into_owned()
 }
 
-/// Checks that rw.path is the chain's own worktree: the root of a git worktree checked out on the chain's branch, which
+/// Checks that w.path is the chain's own worktree: the root of a git worktree checked out on the chain's branch, which
 /// no other chain uses. Remit takes over or removes only such a directory.
-pub async fn own_worktree(rw: &RepoWork) -> Result<(), String> {
-    let top = git(&rw.path, &["rev-parse", "--show-toplevel"])
+pub async fn own_worktree(w: &Worktree) -> Result<(), String> {
+    let top = git(&w.path, &["rev-parse", "--show-toplevel"])
         .await
-        .map_err(|_| format!("{} is not a git worktree", rw.path))?;
-    if !same_path(Path::new(&top), Path::new(&rw.path)) {
-        return Err(format!("{} is inside {top}, not a worktree of its own", rw.path));
+        .map_err(|_| format!("{} is not a git worktree", w.path))?;
+    if !same_path(Path::new(&top), Path::new(&w.path)) {
+        return Err(format!("{} is inside {top}, not a worktree of its own", w.path));
     }
-    let head = git(&rw.path, &["symbolic-ref", "-q", "--short", "HEAD"])
+    let head = git(&w.path, &["symbolic-ref", "-q", "--short", "HEAD"])
         .await
         .map_err(|err| {
             format!(
                 "{} is not on any branch, not on the chain's branch {}: {err}",
-                rw.path, rw.branch
+                w.path, w.branch
             )
         })?;
-    if head != rw.branch {
+    if head != w.branch {
         return Err(format!(
             "{} is on {head:?}, not on the chain's branch {}",
-            rw.path, rw.branch
+            w.path, w.branch
         ));
     }
     Ok(())

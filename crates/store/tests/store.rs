@@ -25,8 +25,8 @@ async fn an_empty_database_migrates_to_the_last_and_opens_again_unchanged() {
     let dir = tempfile::tempdir().unwrap();
     let path = db(&dir);
     Store::open(&path).unwrap().close().unwrap();
-    assert_eq!(peek(&path, "PRAGMA user_version").unwrap(), 131);
-    assert_eq!(peek(&path, "SELECT count(*) FROM schema_migrations").unwrap(), 131);
+    assert_eq!(peek(&path, "PRAGMA user_version").unwrap(), 132);
+    assert_eq!(peek(&path, "SELECT count(*) FROM schema_migrations").unwrap(), 132);
     let objects = peek(
         &path,
         "SELECT count(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'",
@@ -170,7 +170,11 @@ INSERT INTO events(home, card_id, kind, status, text, created_at, updated_at, by
         Some(time::macros::datetime!(2026-11-09 12:00 UTC)),
         "a merged MR landed when it was merged"
     );
-    assert_eq!(chain.repos[0].branch, "b", "the repository keeps where the chain works");
+    assert_eq!(
+        chain.repos[0].worktree().map(|w| w.branch.as_str()),
+        Some("b"),
+        "the repository keeps where the chain works"
+    );
     assert_eq!(
         chain.origin,
         model::ChainOrigin::Owner,
@@ -480,6 +484,67 @@ INSERT INTO events(home, card_id, kind, status, text, created_at, updated_at, by
     );
 }
 
+// A chain's work on a repository says where it lives, and a landing's queue is its own (ADR-0137): the repositories and
+// landings an earlier build stored read as worktrees and queued landings after migrating, the queue's columns still
+// find them, and run again the migration changes nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn stored_repositories_and_landings_read_as_worktrees_and_queued_after_migrating() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = db(&dir);
+    Store::open(&path).unwrap().close().unwrap();
+    Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            r#"DELETE FROM schema_migrations WHERE version > 131; PRAGMA user_version = 131;
+INSERT INTO chains(id, created_at, doc) VALUES('c_wt', 0, '{"id":"c_wt","status":"running","kind":"work","repos":[
+ {"repo":"owner/api","project":"owner/api","host":"github.com","path":"/work/api","branch":"feature/mc-1","base":"main","submit":{"title":"t","startedAt":"2026-11-10T10:00:00Z"}},
+ {"repo":"docs","path":"/work/docs"}],"createdAt":"2026-11-01T00:00:00Z","rev":1}');
+INSERT INTO cleanups(chain_id, doc) VALUES('c_gone', '{"chainId":"c_gone","repos":[{"repo":"owner/api","host":"github.com","project":"owner/api","path":"/work/old","branch":"b","base":"main"}],"dir":"/work/c_gone"}');
+INSERT INTO landings(id, chain_id, repo, created_at, doc) VALUES('ln_1', 'c_wt', 'owner/api', 0, '{"id":"ln_1","chainId":"c_wt","repo":"owner/api","host":"github.com","project":"owner/api","base":"main","state":{"kind":"ready"},"createdAt":"2026-11-10T10:00:00Z","updatedAt":"2026-11-10T10:00:00Z","rev":1}');"#,
+        )
+        .unwrap();
+    let s = Store::open(&path).unwrap();
+    let (chain, cleanups, landings, queued) = s
+        .read(|r| {
+            let q = model::QueueKey {
+                host: "github.com".into(),
+                project: "owner/api".into(),
+                base: "main".into(),
+            };
+            Ok::<_, Error>((r.chain("c_wt")?, r.cleanups()?, r.chain_landings("c_wt")?, r.queue_landings(&q)?))
+        })
+        .await
+        .unwrap();
+    fn worktree(w: Option<&model::Worktree>) -> (&str, &str, &str, &str, &str) {
+        w.map(|w| (w.host.as_str(), w.project.as_str(), w.path.as_str(), w.branch.as_str(), w.base.as_str()))
+            .unwrap()
+    }
+    assert_eq!(
+        worktree(chain.repos[0].worktree()),
+        ("github.com", "owner/api", "/work/api", "feature/mc-1", "main"),
+        "a stored repository is a worktree"
+    );
+    assert!(chain.repos[0].submit.is_some(), "the land in progress is kept");
+    assert_eq!(chain.repos[1].dir(), "/work/docs", "one stored with few keys reads with the rest empty");
+    assert_eq!(worktree(cleanups[0].repos[0].worktree()).2, "/work/old", "a deleted chain's cleanup too");
+    assert_eq!(
+        landings[0].queue,
+        Some(model::QueueKey {
+            host: "github.com".into(),
+            project: "owner/api".into(),
+            base: "main".into()
+        }),
+        "a stored landing waits in the queue it named"
+    );
+    assert_eq!(queued.len(), 1, "the queue still reads its landings by their columns");
+    s.close().unwrap();
+    assert_eq!(
+        peek(&path, "SELECT count(*) FROM landings WHERE json_type(doc, '$.host') IS NOT NULL").unwrap(),
+        0,
+        "no landing keeps its queue at its top level"
+    );
+}
+
 // Remit lands changes itself (ADR-0114, ADR-0116): the merge requests a chain's repository work holds read as its
 // landings after migration 0119, and a grant a chain held reads the same, held by the chain, after chain_grants became
 // grants. Run again, the migration carries over nothing twice.
@@ -517,7 +582,7 @@ INSERT INTO approvals(id, chain_id, at, doc) VALUES('a_qc4', 'c_mr', 5, '{"id":"
         .map(|l| {
             (
                 l.repo.as_str(),
-                l.base.as_str(),
+                l.base(),
                 l.state.clone(),
                 l.reference.as_deref(),
                 l.commit.as_deref(),
@@ -822,9 +887,11 @@ fn full_landing(id: &str, state: model::LandingState, release: Option<&str>) -> 
         id: id.into(),
         chain_id: "c_full".into(),
         repo: "app".into(),
-        host: "github.com".into(),
-        project: "acme/app".into(),
-        base: "main".into(),
+        queue: Some(model::QueueKey {
+            host: "github.com".into(),
+            project: "acme/app".into(),
+            base: "main".into(),
+        }),
         version: model::LandingVersion {
             number: 2,
             from: "abc".into(),
@@ -880,9 +947,9 @@ fn landings_rows(path: &Path) -> Vec<String> {
     .unwrap()
 }
 
-// Migration 0123 makes landings again with the queue's columns: run over a table that holds landings (once by the open
-// after a rewind, once more by hand) it keeps every row, every released column and every document as it was, and the
-// landings read back field for field.
+// Migration 0132 makes landings again with the queue's columns generated from `queue`: run over a table of landings that
+// still hold their queue's address at the top (once by the open after a rewind, once more by hand) it keeps every row and
+// every released column, the same the second time, and the landings read back field for field.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_landings_rebuild_keeps_every_row_and_runs_twice_to_the_same_state() {
     let dir = tempfile::tempdir().unwrap();
@@ -901,10 +968,15 @@ async fn the_landings_rebuild_keeps_every_row_and_runs_twice_to_the_same_state()
         .await
         .unwrap();
     s.close().unwrap();
-    let before = landings_rows(&path);
-    assert_eq!(before.len(), 2);
+    assert_eq!(landings_rows(&path).len(), 2);
 
-    as_an_earlier_build_left_it(&path, 122, "").unwrap();
+    as_an_earlier_build_left_it(
+        &path,
+        131,
+        "UPDATE landings SET doc = json_remove(json_set(doc, '$.host', json_extract(doc, '$.queue.host'),
+            '$.project', json_extract(doc, '$.queue.project'), '$.base', json_extract(doc, '$.queue.base')), '$.queue');",
+    )
+    .unwrap();
     let s = Store::open(&path).unwrap();
     let read: Vec<model::Landing> = s
         .read(|r| Ok::<_, Error>(vec![r.landing("ln_landed")?, r.landing("ln_open")?]))
@@ -922,13 +994,14 @@ async fn the_landings_rebuild_keeps_every_row_and_runs_twice_to_the_same_state()
         .unwrap();
     assert_eq!((in_queue, carried), (2, 1), "the generated columns read as before");
     s.close().unwrap();
-    assert_eq!(landings_rows(&path), before, "the rebuild keeps every row and column");
+    let after = landings_rows(&path);
+    assert_eq!(after.len(), 2, "the rebuild keeps every row");
 
     Connection::open(&path)
         .unwrap()
-        .execute_batch(include_str!("../migrations/0123.sql"))
+        .execute_batch(include_str!("../migrations/0132.sql"))
         .unwrap();
-    assert_eq!(landings_rows(&path), before, "run again, 0123 ends in the same state");
+    assert_eq!(landings_rows(&path), after, "run again, 0132 ends in the same state");
     assert_eq!(
         peek(
             &path,

@@ -52,17 +52,12 @@ const MOMENT_WAIT: Duration = Duration::from_secs(3);
 /// Starts every session as a Claude Code process of its own (`command`), signed in as its account is: `home` names the
 /// account's config dir, which holds its login, or for a plugin's account no login, the variables of its spec
 /// (`AccountEnv`) signing it in; nothing else carries a credential of the provider. `env` is what else the process is
-/// given. A session inherits no secret of the server: its environment is the names claudecode lists, `hide`, the paths in
-/// which Remit keeps its secrets (the key file, the database and its copies, the source env files, the process manager's
-/// config), which it and everything its shell starts cannot read, and `read_only`, the paths the server runs from (its
-/// binary and checkout), read as they are and cannot be changed by it (ADR-0018). A launcher with no path to hide starts
-/// no session: isolation is not left to a caller that forgot to ask for it.
+/// given. A session inherits no secret of the server's environment: its environment is the names claudecode lists. It
+/// runs with the machine user's files and network (ADR-0138).
 pub struct ClaudeLauncher {
     pub command: Vec<String>,
     pub home: Option<Home>,
     pub env: Vec<String>,
-    pub hide: Vec<String>,
-    pub read_only: Vec<String>,
     pub stderr: Option<claudecode::Stderr>,
     pub now: Clock,
     /// Where the login of an account's config dir is read when a session moves onto that account (`Session::move_to`).
@@ -118,22 +113,12 @@ impl ClaudeLauncher {
 
     /// Starts a process on the session resume names, or on a new session of its own id when resume is empty.
     async fn start_on(&self, spec: &Spec, h: &Arc<dyn Handler>, resume: &str) -> Result<ClaudeSession, Error> {
-        if self.hide.is_empty() {
-            return Err(Error::NoHide);
-        }
         let account_env = self.account_env(spec)?;
         let mut o = options(spec, &repository_root(&spec.cwd));
-        o.hide.clone_from(&self.hide);
-        o.read_only = self.read_only.iter().chain(&spec.read_only).cloned().collect();
         let attachments = tempfile::Builder::new()
             .prefix("remit-attachments-")
             .tempdir()
             .map_err(|e| Error::Prepare(format!("the session's attachment directory: {e}")))?;
-        let attachment_path = attachments
-            .path()
-            .canonicalize()
-            .map_err(|e| Error::Prepare(format!("the session's attachment path: {e}")))?;
-        o.read_only.push(attachment_path.to_string_lossy().into_owned());
         let (servers, values) = by_reference(&spec.mcp);
         o.mcp_servers = mcp_config(servers);
         o.command.clone_from(&self.command);

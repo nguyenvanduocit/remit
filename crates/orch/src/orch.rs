@@ -112,8 +112,8 @@ impl Orchestrator {
             );
             let steps: Option<Arc<dyn shipping::release_run::StepRunner>> = match cfg.release_steps {
                 crate::release_steps::ReleaseSteps::None => None,
-                crate::release_steps::ReleaseSteps::Jailed(runner) => {
-                    Some(Arc::new(crate::release_steps::JailedSteps {
+                crate::release_steps::ReleaseSteps::Programs(runner) => {
+                    Some(Arc::new(crate::release_steps::ProgramSteps {
                         reach: Arc::clone(&reach),
                         runner,
                     }))

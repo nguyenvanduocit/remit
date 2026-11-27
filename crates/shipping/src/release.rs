@@ -1,7 +1,7 @@
 //! Releases (ADR-0116), the rule, pure: what a repository's procedure in `.remit/release/` is, which landed commit is
 //! released next and what it carries, what a step's exit says, what a release bakes under and when that says it hurts,
-//! and what a step's environment holds. The shell (release_run.rs) reads the store and the clone, runs the steps in the
-//! jail and records what this rule says; the tests run the rule without a mock.
+//! and what a step's environment holds. The shell (release_run.rs) reads the store and the clone, runs the steps and
+//! records what this rule says; the tests run the rule without a mock.
 //!
 //! A release is Remit's code, after every landing, one at a time per repository: no agent and no person is asked
 //! whether to release. What is released is decided in the commit (a version bump is part of the change its gates
@@ -275,7 +275,7 @@ pub fn reaim(all: &[Landing], now: Time) -> Vec<&Landing> {
 pub enum StepOutcome {
     /// It exited 0: the next step runs.
     Passed,
-    /// The outside was not reachable (exit 75), or Remit could not run it (no jail, no way out): the release is tried
+    /// The outside was not reachable (exit 75), or Remit could not run it (no grant, no proxy): the release is tried
     /// again at the next sync and nothing is taken back.
     Retry,
     /// Any other failure, a step that ran past its deadline included: the release is breached.

@@ -1,6 +1,6 @@
 # 0021. The jail has an adapter per OS: namespaces on Linux, Seatbelt on macOS
 
-Status: accepted, 2026-10-30. Source: the owner's request of 2026-10-30 (run Remit on a Mac; "the app runs on both"),
+Status: superseded by 0138; accepted, 2026-10-30. Source: the owner's request of 2026-10-30 (run Remit on a Mac; "the app runs on both"),
 ADR-0018 ("Where the executor runs"), ADR-0004.
 
 ## Context

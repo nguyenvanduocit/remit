@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use std::sync::LazyLock;
 
-use model::{Chain, ChainKind, DecisionKind, Landing, Time, Verdict, VerdictRole};
+use model::{Chain, ChainKind, DecisionKind, Landing, RepoWork, Time, Verdict, VerdictRole};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -343,9 +343,9 @@ fn record_of(c: &Chain, landings: &[Landing]) -> ChainRecord {
         created_at: c.created_at,
         updated_at: c.updated_at,
     };
-    for rw in &c.repos {
-        if !rw.branch.is_empty() {
-            r.branches.push(format!("{}:{}", rw.project, rw.branch));
+    for w in c.repos.iter().filter_map(RepoWork::worktree) {
+        if !w.branch.is_empty() {
+            r.branches.push(format!("{}:{}", w.project, w.branch));
         }
     }
     r

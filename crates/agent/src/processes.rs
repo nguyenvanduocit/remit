@@ -1,4 +1,4 @@
-//! Samples the OS tree below the child that Claude's connection owns (including any jail supervisor).
+//! Samples the OS tree below the child that Claude's connection owns.
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};

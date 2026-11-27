@@ -69,7 +69,7 @@ pub fn version_by(cards: &[Card], ds: &[Decision], rw: &RepoWork, since: Option<
             || since.is_some_and(|since| d.created_at <= since)
             || c.employee.is_empty()
             || c.signs != Signs::None
-            || !cwd_in_worktree(&c.cwd, &rw.path)
+            || !cwd_in_worktree(&c.cwd, rw.dir())
         {
             continue;
         }

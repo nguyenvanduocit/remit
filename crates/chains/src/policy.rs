@@ -164,19 +164,6 @@ pub fn ceiling_read_only(c: &Ceiling) -> bool {
     !c.tools.is_empty() && !c.tools.iter().any(|t| t == "Bash" || EDIT_TOOLS.contains(&t.as_str()))
 }
 
-/// The directories a card at read cannot change: its own and each worktree of its chain.
-pub fn read_only_worktrees(c: &Card, chain: Option<&Chain>) -> Vec<String> {
-    let mut paths = vec![c.cwd.clone()];
-    if let Some(chain) = chain {
-        paths.push(chain.workdir.clone());
-        paths.extend(chain.repos.iter().map(|rw| rw.path.clone()));
-    }
-    paths.retain(|p| !p.is_empty());
-    paths.sort();
-    paths.dedup();
-    paths
-}
-
 /// The Claude Code tools a chain's agents are denied because the chain holds no capability for them: Bash without
 /// shell, WebFetch and WebSearch without web. A card that is no chain's (the Assistant's) has no chain to hold them
 /// back and keeps what its own access gives.
@@ -404,51 +391,6 @@ impl Core {
         own.extend(own_secret_dirs(&dirs));
         own
     }
-
-    /// What a session may not change of the clones Remit holds, so that nothing a session put there runs with more than
-    /// the session had: the server's own git, which runs outside every session's sandbox (ADR-0021), and the next
-    /// session Claude Code starts in a worktree, with that worktree's settings. Each clone's `controls`. A session that
-    /// writes still commits in its worktree: the objects, refs and index stay writable.
-    pub fn controls(&self) -> Vec<String> {
-        self.clones()
-            .iter()
-            .flat_map(|r| controls(&self.clone_dir(r)))
-            .collect()
-    }
-}
-
-/// The settings files of the Claude Code sessions started in dir, which say what a session may do and run (permissions,
-/// hooks, environment): the project's, the only source a session reads (agent's options.rs), and the local one.
-fn session_settings(dir: &Path) -> [std::path::PathBuf; 2] {
-    let claude = dir.join(".claude");
-    [claude.join("settings.json"), claude.join("settings.local.json")]
-}
-
-/// The files through which a program run in the clone at dir or in one of its worktrees is told what to run: for git,
-/// the clone's config (hooks path, fsmonitor, filters and every other command a key names) and hooks, and for each
-/// worktree in the clone's registry, the registry's commondir (where the clone's .git is) and gitdir, and the worktree's
-/// own .git file the gitdir names (where its registry entry is); for Claude Code, the `session_settings` of the clone and
-/// of each worktree. A worktree's config.worktree is read only when the clone's config turns it on. A registry entry whose
-/// gitdir does not name a .git file adds only its own files.
-fn controls(dir: &Path) -> Vec<String> {
-    let git = dir.join(".git");
-    let mut out = vec![git.join("config"), git.join("hooks")];
-    out.extend(session_settings(dir));
-    for entry in std::fs::read_dir(git.join("worktrees")).into_iter().flatten().flatten() {
-        let entry = entry.path();
-        let link = std::fs::read_to_string(entry.join("gitdir")).unwrap_or_default();
-        out.extend([entry.join("commondir"), entry.join("gitdir")]);
-        // git writes the path absolute, or relative to the entry with worktree.useRelativePaths
-        let named = entry.join(link.trim());
-        if named.file_name().is_some_and(|n| n == ".git") && !link.contains('\0') {
-            if let Some(worktree) = named.parent() {
-                out.extend(session_settings(worktree));
-            }
-            out.push(named);
-        }
-    }
-    // the jail takes a path only absolute and clean
-    out.iter().map(|p| clean(&p.to_string_lossy())).collect()
 }
 
 /// p cleaned lexically: one slash between names, no `.`, and each `..` taking the name before it.

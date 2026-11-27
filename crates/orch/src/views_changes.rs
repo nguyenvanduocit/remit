@@ -5,13 +5,16 @@
 //! the snapshot runs no git at all.
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use model::{Approval, Chain, ChainStatus, RepoWork};
+use model::{Approval, Chain, ChainStatus, Landing, RepoWork, WorkPlace};
 
 use chains::git::git;
+use shipping::checkpoint::measured_from;
 use shipping::gate::patch_id;
+use shipping::shadow::Shadow;
 use shipping::verification::Changes;
 
 /// How long reading a chain's changes may take.
@@ -42,7 +45,31 @@ fn judged(c: &Chain, verdicts: &[Approval]) -> bool {
 
 /// Chain c's worktrees: one with no directory is left out, as git would read the directory the server runs in.
 fn worktrees(c: &Chain) -> impl Iterator<Item = &RepoWork> {
-    c.repos.iter().filter(|rw| !rw.path.is_empty())
+    c.repos.iter().filter(|rw| !rw.dir().is_empty())
+}
+
+/// Where rw's change stands now, in git's own words: for a worktree HEAD and the base's tip, for a folder worked in place
+/// its newest checkpoint and the checkpoint it is measured from (the last version approved, from `landings`; its shadow Git
+/// directory is under folders_dir). The change is read again only when this moved.
+async fn position(rw: &RepoWork, landings: &[Landing], folders_dir: &Path) -> Result<String, String> {
+    match &rw.place {
+        WorkPlace::Worktree(w) => git(&w.path, &["rev-parse", "HEAD", &format!("origin/{}", w.base)]).await,
+        WorkPlace::Folder { .. } => {
+            let head = Shadow::new(folders_dir, rw.dir()).head().await?;
+            Ok(format!("{head} {}", measured_from(rw, landings)))
+        }
+    }
+}
+
+/// rw's patch id: of HEAD against the base's tip, or of the folder's newest checkpoint against the one it is measured from.
+async fn change_of(rw: &RepoWork, landings: &[Landing], folders_dir: &Path) -> Result<String, String> {
+    match &rw.place {
+        WorkPlace::Worktree(w) => patch_id(&w.path, &format!("origin/{}", w.base), "HEAD").await,
+        WorkPlace::Folder { .. } => {
+            let shadow = Shadow::new(folders_dir, rw.dir());
+            shadow.patch_id(measured_from(rw, landings), &shadow.head().await?).await
+        }
+    }
 }
 
 impl ChangesRead {
@@ -53,7 +80,7 @@ impl ChangesRead {
     /// Reads chain c's changes again from its worktrees, when its verdicts are judged against them (`judged`). A
     /// worktree's patch id is computed again only when its HEAD or its base's tip moved; one that cannot be read is
     /// forgotten, so its verdicts are not checked against a change it may no longer hold.
-    pub(crate) async fn read(&self, c: &Chain, verdicts: &[Approval]) {
+    pub(crate) async fn read(&self, c: &Chain, verdicts: &[Approval], landings: &[Landing], folders_dir: &Path) {
         if !judged(c, verdicts) {
             return;
         }
@@ -61,17 +88,17 @@ impl ChangesRead {
         let now = tokio::time::Instant::now();
         let deadline = now.checked_add(CHANGES_READ_LIMIT).unwrap_or(now);
         for rw in worktrees(c) {
-            let tip = format!("origin/{}", rw.base);
-            let at = tokio::time::timeout_at(deadline, git(&rw.path, &["rev-parse", "HEAD", &tip]))
+            let dir = rw.dir();
+            let at = tokio::time::timeout_at(deadline, position(rw, landings, folders_dir))
                 .await
                 .unwrap_or_else(|_| Err("timed out".to_owned()));
             if let Ok(at) = &at
-                && self.heads().get(&rw.path).is_some_and(|h| h.at == *at)
+                && self.heads().get(dir).is_some_and(|h| h.at == *at)
             {
                 continue;
             }
             let read = match at {
-                Ok(at) => tokio::time::timeout_at(deadline, patch_id(&rw.path, &tip, "HEAD"))
+                Ok(at) => tokio::time::timeout_at(deadline, change_of(rw, landings, folders_dir))
                     .await
                     .unwrap_or_else(|_| Err("timed out".to_owned()))
                     .map(|change| Head { at, change }),
@@ -79,10 +106,10 @@ impl ChangesRead {
             };
             match read {
                 Ok(h) => {
-                    self.heads().insert(rw.path.clone(), h);
+                    self.heads().insert(dir.to_owned(), h);
                 }
                 Err(err) => {
-                    self.heads().remove(&rw.path);
+                    self.heads().remove(dir);
                     tracing::warn!(chain = %c.id, repo = %rw.repo, %err, "change not read: its verdicts are not checked against it");
                 }
             }
@@ -97,13 +124,13 @@ impl ChangesRead {
         }
         let heads = self.heads();
         worktrees(c)
-            .filter_map(|rw| heads.get(&rw.path).map(|h| (rw.repo.clone(), h.change.clone())))
+            .filter_map(|rw| heads.get(rw.dir()).map(|h| (rw.repo.clone(), h.change.clone())))
             .collect()
     }
 
     /// Forgets the changes of every worktree but those of chains, the chains still on the board.
     pub(crate) fn keep_only(&self, chains: &[Chain]) {
-        let kept: HashSet<&str> = chains.iter().flat_map(worktrees).map(|rw| rw.path.as_str()).collect();
+        let kept: HashSet<&str> = chains.iter().flat_map(worktrees).map(RepoWork::dir).collect();
         self.heads().retain(|path, _| kept.contains(path.as_str()));
     }
 }

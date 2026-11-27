@@ -1,6 +1,6 @@
 //! Programs, the form T2 of ADR-0018: an agent runs a command-line program with a connection's credential and never holds
-//! it. The credential is in the environment of the program, which runs in a jail (the `Runner`, implemented by the
-//! orchestrator over the jail crate); the agent writes the arguments, and the source fixes everything else: the binary, the
+//! it. The credential is in the environment of the program alone, which the `Runner` runs (the orchestrator implements it
+//! over `procgroup::Program`, ADR-0138); the agent writes the arguments, and the source fixes everything else: the binary, the
 //! environment, the subcommands that may run and the addresses the program may reach. That the program only reads is the
 //! credential's own rights (the owner supplies a read-only credential): this form enforces it no further than that, and says
 //! so wherever it is shown.
@@ -30,7 +30,7 @@ use crate::when::duration_text;
 /// The one tool through which an agent runs a program: it takes the source, so the grammar is one for every source.
 pub const RUN_TOOL: &str = "run";
 
-/// Under the call's deadline, so the jail ends the program and says so before the gate's deadline does.
+/// Under the call's deadline, so the runner ends the program and says so before the gate's deadline does.
 pub(crate) const PROGRAM_TIMEOUT: Duration = Duration::from_secs(25);
 pub(crate) const MAX_ARGS: usize = 64;
 pub(crate) const MAX_ARG_BYTES: usize = 4096;
@@ -52,7 +52,7 @@ pub type ProgramEnv = Arc<dyn Fn(&str) -> Vec<String> + Send + Sync>;
 /// agent never sees `env`, `secrets` or `egress`.
 #[derive(Clone)]
 pub struct ProgramSpec {
-    /// The program, a name the jail looks up along the PATH of `env`.
+    /// The program, a name looked up along the PATH of `env`.
     pub binary: String,
     /// The leading words of every command that may run: the arguments must start with one of them.
     pub allow: Vec<Vec<String>>,
@@ -67,10 +67,8 @@ pub struct ProgramSpec {
     pub env: ProgramEnv,
     /// The values of the credential: each is removed from everything the program wrote, before the answer is made.
     pub secrets: Vec<String>,
-    /// The host:port addresses the program may reach, and nothing else.
+    /// The host:port addresses the program's proxy lets it reach, and nothing else.
     pub egress: Vec<String>,
-    /// The paths of the host the program may read besides the system's, its own files.
-    pub read_only: Vec<String>,
     /// When set, checked before every run.
     pub verify: Option<Verify>,
 }
@@ -158,10 +156,8 @@ pub struct Job {
     pub env: Vec<String>,
     /// A scratch directory of this run alone, removed when it ends.
     pub dir: PathBuf,
-    /// The host:port addresses the program may reach.
+    /// The host:port addresses the program's proxy lets it reach.
     pub egress: Vec<String>,
-    /// The paths of the host the program may read besides the system's.
-    pub read_only: Vec<String>,
     /// When set, the form T1: the program reaches only that connection's address, through a proxy that adds the credential;
     /// `egress` is then empty and `env` holds no credential.
     pub inject: Option<InjectJob>,
@@ -180,20 +176,20 @@ pub struct Output {
     pub timed_out: bool,
 }
 
-/// Runs a Job in a jail. The orchestrator implements it over the jail crate; this crate depends on neither (ADR-0015). An
+/// Runs a Job. The orchestrator implements it over `procgroup::Program`; this crate depends on neither (ADR-0015). An
 /// error is for a run that could not be made; a program that fails is an Output.
 pub trait Runner: Send + Sync {
     fn run<'a>(&'a self, j: &'a Job) -> BoxFuture<'a, std::result::Result<Output, BoxError>>;
 
-    /// Starts `j` in a jail and leaves it running, its stdin and stdout piped to the caller: an MCP server over stdio
-    /// (ADR-0077). `j.timeout` bounds its processor time; `j.max_output` is not used. A host that starts none says so.
+    /// Starts `j` and leaves it running, its stdin and stdout piped to the caller: an MCP server over stdio
+    /// (ADR-0077). `j.timeout` and `j.max_output` are not used: dropping what it returns ends it. A host that starts none says so.
     fn spawn<'a>(&'a self, j: &'a Job) -> BoxFuture<'a, std::result::Result<Spawned, BoxError>> {
         let _ = j;
         Box::pin(async { Err("this host starts no long-lived program".into()) })
     }
 }
 
-/// A program the jail keeps running: what it reads and writes, and what holds it. Dropping `hold` ends it and everything it
+/// A program left running: what it reads and writes, and what holds it. Dropping `hold` ends it and everything it
 /// started, and closes its way out.
 pub struct Spawned {
     pub stdin: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
@@ -298,7 +294,6 @@ async fn program_exec(spec: &ProgramSpec, runner: &dyn Runner, args: Value) -> R
         env: (spec.env)(&dir.path().to_string_lossy()),
         dir: dir.path().to_path_buf(),
         egress: spec.egress.clone(),
-        read_only: spec.read_only.clone(),
         inject: None,
         timeout: PROGRAM_TIMEOUT,
         max_output: OUTPUT_MAX,
@@ -324,7 +319,7 @@ fn program_detail(spec: ProgramSpec) -> Detail {
 }
 
 /// The line that heads a program's answer: the honest effect of this form (ADR-0018, invariant 4).
-pub(crate) const PROGRAM_FORM: &str = "form: program (env in a jail; read-only is the credential's rights)";
+pub(crate) const PROGRAM_FORM: &str = "form: program (credential in its environment; read-only is the credential's rights)";
 
 /// What an agent reads of a finished program: its output under the form and the command, or an error that says how it
 /// failed. The program's secrets are removed first. Pure.
@@ -413,7 +408,7 @@ pub(crate) fn run_what(name: &str, spec: &ProgramSpec) -> String {
 /// The run tool's description over the programmed sources `ks`.
 fn run_description(set: &Set, ks: &[Kind]) -> String {
     let mut b = String::from(
-        "Run a command-line program with the credential of a connection, which you never see: the program runs in a jail with the credential in its environment, reaches only that connection's address, and finds no file but its own scratch directory. \
+        "Run a command-line program with the credential of a connection, which you never see: the program runs with the credential in its environment and its HTTP clients sent through Remit's gate, which lets them reach only that connection's address; it starts in a scratch directory of its own. \
 You give the source and the arguments (an argv, no shell; the program's name is fixed), and read its output. Use it when no typed tool of the source answers; a typed tool comes first. Sources and what each runs:",
     );
     for k in ks {

@@ -238,7 +238,6 @@ impl Provider for CloudWatch {
             }),
             secrets: vec![self.key.clone(), self.secret.clone(), self.token.clone()],
             egress: aws_egress(&self.region, &["logs", "sts"]),
-            read_only: Vec::new(),
             verify: None,
         })
     }

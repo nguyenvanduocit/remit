@@ -44,12 +44,12 @@ branch per company.
 | 5 | Forge | an outside adapter | the forge hosts the code: Remit pushes the base and reads a landed commit's checks through the `Forge` service the host lends a plugin's sensor (ADR-0114, Built); an outside adapter is three reads and a push, Planned when a third forge is in use |
 | 6 | Model | Claude Code is the one harness, behind `agent::Launcher`; a backend per cell | decided (K7, ADR-0006); Planned |
 | 7 | Law | retention, export, delete, AI notice | export Built; the rest Planned (K9) |
-| 8 | Operating system | a jail adapter | Built: Linux and macOS (ADR-0021) |
+| 8 | Operating system | any host where `claude` runs; every child but a session starts through one runner (`procgroup::Program`) | Built: Linux and macOS (ADR-0138) |
 | 9 | Sensor kind | a plugin that declares a kind in `Describe` and senses with `Sense` (a stream of readings) or `Poll` | Built (ADR-0049) |
 | 10 | Processor | a plugin that declares a processor in `Describe` and runs it with `Process` on a subscription of Remit | Built (ADR-0049) |
 
-**Honest limits.** Two places miss "any": a bank on Kubernetes (the jail needs seccomp and AppArmor off, and there is no
-container image) and sign-in (the owner has one owner key and, when set up, his Google account, no SSO and no two-person approval; a mentor works from
+**Honest limits.** Two places miss "any": a bank on Kubernetes (there is no
+container image, and Remit runs no isolation between its agents and the host, ADR-0138) and sign-in (the owner has one owner key and, when set up, his Google account, no SSO and no two-person approval; a mentor works from
 codes he has made for them, ADR-0060, ADR-0062). A system behind a VPN is solved by the
 distribution model: the customer runs the cell inside their network. Irreversible effects stay unbounded (blueprint 3.8).
 
@@ -77,7 +77,7 @@ versions ("upgrading may break it"). It follows that:
 
 **Held and built on** (HIGH unless marked): one writer per chain; `act` runs once per request id (`crates/orch/src/request.rs`);
 `model.Change` records before and after in one transaction with `ApprovedBy`; one contract, `crates/wire`; migrations
-carry a checksum; `grant::decide` is pure (`crates/grant/src/lib.rs`); the jail has an adapter per OS (ADR-0021); a source's
+carry a checksum; `grant::decide` is pure (`crates/grant/src/lib.rs`); every child but a session starts through one runner, `procgroup::Program`, the seam where isolation returns (ADR-0138); a source's
 credential is typed by the owner into a write-only field and never enters an agent's context (ADR-0017); every Claude Code
 session runs in the AI runtime, the server's child, behind the one session port `agent::Launcher` (ADR-0058); a mentor works in the
 web app over `wire::app`, scoped to the cards they help, with a code the owner has made for them (ADR-0060, ADR-0062,
@@ -87,11 +87,12 @@ ADR-0089).
 - The gate (`pass`, `attempt`, `permit` in `crates/source/src/gate.rs`) covers source tools, `run`, `script` and sensors; it does
   not know a stop, and a refusal is `NoGrant` or `Rail` only (`Refusal`, `crates/grant/src/lib.rs:104-109`); `Stopped` and `Law` are not
   there.
-- A macOS session runs `(allow default)` (`crates/jail/src/sandbox_darwin.rs`), while the program jail on macOS is `(deny default)`:
-  the pattern for fixing the session exists. On Linux a session has no pid namespace: only a jail gets one (`crates/jail/src/namespaces_linux.rs`).
-- The session and the server share one uid (`crates/jail/src/namespaces_linux.rs`), so the session can read what the server
-  reads, except what the jail hides.
-- `crates/egress` forwards through a unix socket; its allow-list has no wildcard and it cannot see inside a CONNECT tunnel
+- Remit runs no isolation (ADR-0138): a session, a source's program, a repository's checks and a release's steps run as
+  the user, with the user's files and network. The session and the server share one uid, so a session can read what the
+  server reads, the key file and the database included; the ask and deny rules (`crates/chains/src/policy.rs`) are a
+  tripwire. This holds while one person runs Remit on their own machine.
+- `crates/egress` listens on a loopback port a program reaches through its proxy variables, and a program can go around
+  it; its allow-list has no wildcard and it cannot see inside a CONNECT tunnel
   (`crates/egress/src/egress.rs`): it stops a destination, not what is said to an allowed one.
 - `events` has no retention: settled events are packed (`crates/store/src/pack.rs`), never expired; a daily `VACUUM INTO` snapshot exists (`crates/store/src/snapshot.rs`) and
   no restore code does (K1).
@@ -135,8 +136,8 @@ restoring by copying a file back works by hand. So there is no `/metrics`, no re
   fresh `/proc`.
 - **Egress that records.** A new mode in `crates/egress`: allow every destination, record and count every connection. It is
   the measuring point and the cut point of the stop button. It does not read content (CONNECT is opaque bytes); blocking content
-  belongs to the tool gate. A macOS session moves to `(deny default)` with only the proxy's loopback port, which needs a relay
-  because sessions reach Remit's MCP over loopback.
+  belongs to the tool gate. Making it the only way out needs isolation back at the runner and around sessions (ADR-0138,
+  *Revisit when*); sessions reach Remit's MCP over loopback, so that isolation must leave them that port.
 - **A stop drill.** The server commands a stop and measures the time until the last byte leaves the proxy and the last process of
   the scope is gone; the owner alone triggers it; the result shows on the scorecard.
 - **Still wrong afterwards:** macOS has no pid namespace, so a `setsid` child dies only by `kill` by user; on both OSes the model
@@ -150,7 +151,7 @@ restoring by copying a file back works by hand. So there is no `/metrics`, no re
   launchd/systemd unit templates) and `remit tenant create|list|stop|upgrade|export|delete`. The customer upgrades by looping
   over their cells (`remit update` keeps `current` and `previous`).
 - **One owner, no roles (Built, ADR-0026, ADR-0105):** the owner is let in by the owner key, or by Google through the server's Firebase project when it has one (ADR-0105), the key a file the
-  sessions cannot see, handed over by the link the server prints (ADR-0022); one owner per server. Network protection is the
+  ask rules name (a tripwire: a session runs as the same OS user and can read it, ADR-0138), handed over by the link the server prints (ADR-0022); one owner per server. Network protection is the
   deployer's job. The three alternatives were an unprotected port (sessions would approve their own grants and apply their own
   changes), an OS user per session with a uid firewall (K2, larger), and nothing. A mentor is not a user of the
   app: the owner has the Assistant make them a code per device, and that worker key reaches only the cards they help, in
@@ -159,7 +160,7 @@ restoring by copying a file back works by hand. So there is no `/metrics`, no re
   context (its customer, the owner's notes, its repositories and connections) is a project the owner keeps through the
   Assistant, and one cell works on several products at once (ADR-0108). A project is context, never a tenant: what must be
   kept apart is a cell. The owner's secret directories are `-secret-dirs`.
-- **Not planned:** SSO for the owner and two-person approval, a container image with the jail in a pod, a remote executor.
+- **Not planned:** SSO for the owner and two-person approval, a container image, a remote executor.
 
 ### K4. The gate: wide coverage, an effect ladder, refusals with a reason
 - **`grant::decide` keeps its pure signature.** A stop and a law combine with it in `crates/orch/src/grants.rs`, where
@@ -170,9 +171,9 @@ restoring by copying a file back works by hand. So there is no `/metrics`, no re
   with K9. The blueprint's four codes are `STOPPED`, `UNLAWFUL`, `RAIL`, `PLATFORM_RECORD`; `NoGrant` is "least grant" of ADR-0018
   (still open, section 8).
 - **Wide coverage (Built, ADR-0028):** Bash, WebFetch and WebSearch are capabilities `shell` and `web` that a chain's kind starts it with or its
-  Chair gives it with `grant_capability` (a capability that writes it asks the owner for with `request_capability`); a chain without them has the tools denied. Repository checks and forge commands run through the jail (ADR-0025).
+  Chair gives it with `grant_capability` (a capability that writes it asks the owner for with `request_capability`); a chain without them has the tools denied. Repository checks and forge commands run as child programs of the server, with no isolation (ADR-0025, ADR-0138).
 - **Ledger (Built):** the `source_calls` table (migration 53) records the call with its argv. The log files (`remit.log`,
-  `agents.log`) are hidden from sessions. A hash chain is deferred and named as debt.
+  `agents.log`) are readable by a session (ADR-0138). A hash chain is deferred and named as debt.
 - **The seal set** (human anchors, seeded-fault labels, canary positions) is **outside the cell's database**, where only the owner
   and the measuring job read; an agent with Bash under the server's user would read it with `secret.key` otherwise (Planned).
 - **Control separate from data:** a role that reads outside content runs as an isolated reader with no tool but its reads, its output labelled with its source.
@@ -200,7 +201,7 @@ restoring by copying a file back works by hand. So there is no `/metrics`, no re
   back. The customer supplies a binary by the same path; a chain writing source for the platform to build is the second path
   (Planned).
 - **MCP servers (decided, ADR-0077; Planned):** an outside MCP server is an extension of form `mcp`, Remit its only client: stdio
-  in the jail with the connection's sealed variables, or HTTP with the credential in the backend. Each tool is pinned at first
+  through the runner with the connection's sealed variables, or HTTP with the credential in the backend. Each tool is pinned at first
   connect (description, schema hash, effect: read when `readOnlyHint`, else irreversible) and served as `<source>_<tool>` through
   the gate; a tool that drifts is held back until a change item is applied. "Bring in my MCP servers" goes to the Assistant
   (`list_importable_mcp_servers`, `propose_mcp_server`); OAuth sign-in follows as a `login` item. A session still holds no MCP
@@ -234,7 +235,7 @@ judge's recheck on `fact:chain.landed` read the landing.
   or an allowed role). Without a forge no chain opens a repository (`OpenRepo` needs a clone). The install guide states both.
 - **How a change lands:** the Chair submits a version (`land`); its gates (the kind's, security on a rail) judge its patch id;
   approved, it enters its repository's queue by itself; the queue combines a batch onto the current base, one commit each,
-  runs the checks on the combined tree in the jail, bisects a failure, returns a conflict to its Chair, and fast-forwards the
+  runs the checks on the combined tree, bisects a failure, returns a conflict to its Chair, and fast-forwards the
   base. The forge's CI on the pushed commit and a stage's guardrail are read after; a breach is reverted by code. The owner
   reads the landing and its diff in Remit and overturns by telling an agent (`revert_landing`).
 - **What Remit takes from concord** (measured 2026-11-18): the combined-result gate (the
@@ -250,8 +251,8 @@ judge's recheck on `fact:chain.landed` read the landing.
   not the approval:** real-time work (answering a customer) runs through the gate at once and only commits a log afterwards.
   Forcing every action through a landing is not feasible and conflicts with the stance of no approval gate on agents'
   initiative.
-- **Built: a repository declares its checks** (ADR-0025): executables in `.remit/checks`, run in a jail with the repository
-  read-only and no network, after the language's checks, failing closed. A repository in a language Remit has no check for has deterministic checks that
+- **Built: a repository declares its checks** (ADR-0025): executables in `.remit/checks`, run as child programs with a deadline,
+  after the language's checks, failing closed. A repository in a language Remit has no check for has deterministic checks that
   it names itself, and each domain brings its own (schema check, recomputed numbers, doc lint). The queue runs them on the
   combined tree.
 - **A forge's merge request** stays possible behind the `Lander` port (a `ForgeMerge` adapter, not built) for a team whose
@@ -334,7 +335,7 @@ What stays the owner's are the secret acts (a credential, a sign-in code, seeing
 overturning. Every other item that would wait for him is routed to the Assistant (woken by `fact:owner.asked`), decided and
 recorded; the inbox shows what agents did, with Overturn. No request to land or release exists, so none can be declined on
 taste. Every repository releases what lands by its own procedure (ADR-0116): `.remit/release/` holds steps Remit runs in
-code on the landed commit, in the jail, reaching only the connections it names through the injecting proxy (the credential
+code on the landed commit, reaching with a credential only the connections it names, through the injecting proxy (the credential
 never in the procedure), under grants its repository holds and the Assistant decides; an optional `guard` and `back`. A
 release runs after a landing's forge checks pass, one at a time per repository; a breach runs `back`, reverts its landings
 (ADR-0114) and releases forward, with no turn. For Remit's own repository the procedure waits for the workflow's release of
@@ -388,7 +389,7 @@ The extension protocol is `wire::plugin` (`crates/wire/src/plugin.rs`, K5).
 | An extension | malicious code or a typosquat; secret leak; reading cell data *(S/I/E)* | drafted by the owner's agent and applied by the owner; hash pin; the data directory is not mounted; egress by list; secrets stripped from output; code read-only to sessions |
 | The seal set | an agent reads seeded-fault labels or thresholds *(I/T)* | outside the cell's database and outside tool reach |
 | Session and server on one uid | a session reads the database and the seal key *(I/E)* | the session user differs from the server's (K2); until it exists F1/F2 do not hold |
-| The unauthenticated browser channel | an agent on the machine calls RPC like the owner: approves grants, applies changes, touches every rail *(S/E)* | one shared owner key that sessions cannot see, and the owner's Google sign-in (ADR-0022, ADR-0105); an OS user per session plus a uid firewall is the later hardening |
+| The unauthenticated browser channel | an agent on the machine calls RPC like the owner: approves grants, applies changes, touches every rail *(S/E)* | one shared owner key in a file the ask rules name (a tripwire: a session can read it, ADR-0138), and the owner's Google sign-in (ADR-0022, ADR-0105); an OS user per session plus a uid firewall is the later hardening |
 | A mentor's session on `/link` | a stolen worker key steers a card as that mentor; a code passed on over chat is read by someone else *(S/E)* | a key per device, compared in constant time, shown only to the owner, ended through the Assistant's `revoke_worker_key` or by the mentor's removal (ADR-0060, ADR-0062) |
 | The Assistant deciding for the owner | outside text in a Chair's question (an MR comment, a post, a source's content) steers it to lift a stop the owner pulled or raise a ceiling *(T/E)* | every act recorded as the Assistant's with its reason and overturnable by the owner; secrets stay the owner's; one delegation function to narrow when hardening is asked for (ADR-0062) |
 | The AI runtime on `/runtime` | another process on the machine dials `/runtime` as the runtime and is handed every session *(S/I)* | a key minted per server start, passed on the runtime's stdin, compared in constant time (ADR-0058) |
@@ -398,17 +399,16 @@ The extension protocol is `wire::plugin` (`crates/wire/src/plugin.rs`, K5).
 | Release chain and auto-update | a leaked signing key or captured release process steers every customer's agents *(T/E)*; forced downgrade; the update check leaks IP *(I)* | HSM, two-person signing, reproducible builds with published hashes, refuse a lower version, a transparency log; the static server identifies no cell. **Needs its own threat model before the first customer** |
 | The landing queue | an unjudged or combined-broken change reaches the base; the push account is used outside the queue *(T/E)* | only a version whose patch id carries every gate lands, checked on the combined tree; agents cannot push; a breach is reverted by code; the session's own OS user (K2) and `land_policy` by origin and path are the hardening (ADR-0114) |
 | A repository's release | an agent-written procedure publishes harm under the owner's accounts, or reads a credential *(T/E/I)* | the procedure is a rail (`security`); it runs only on a landed commit; the credential stays in the injecting proxy; `irreversible` grants wait out the overturn window; a breach is taken back by code; `land_policy` on `.remit/release/` and per-step connections are the hardening (ADR-0116) |
-| The platform ledger | an agent edits the log *(R)* | the log files are hidden from sessions; `source_calls` is written by the server; the hash chain is named debt |
+| The platform ledger | an agent edits the log *(R)* | `source_calls` is written by the server; a session can read and write the log files (ADR-0138); the hash chain is named debt |
 
 ## 7. What is still wrong on each operating system
 
-- **macOS:** the stop button is not final without a session user (no pid namespace, ADR-0021); a session reads the environment of
-  every process of the same user, including another session's MCP token (ADR-0021); a `(allow default)` session means a model call
-  with personal data bypasses a law policy; the jail's relay listens on the host's loopback (`crates/jail/src/sandbox_darwin.rs`),
-  so another process can borrow the way out; there is no memory limit.
-- **Linux:** F2 stays false until the session user and a GitLab connection kind exist; a session has no pid namespace; the law
-  depends on a legal pack that does not exist and `events` has no retention. The jail of a **program or extension** is strong (every
-  namespace, capabilities dropped); the gap is the **session**.
+- **Every OS:** Remit runs no isolation (ADR-0138). A session reads the environment of every process of the same user,
+  including another session's MCP token; a model call with personal data bypasses a law policy; a program reaches the
+  network around the egress gate, whose loopback port another process can borrow; there is no memory limit.
+- **macOS:** the stop button is not final against a `setsid` child without a session user (K2).
+- **Linux:** F2 stays false until the session user and a GitLab connection kind exist; the law depends on a legal pack that
+  does not exist and `events` has no retention.
 
 ## 8. Units of work (dependencies, not phases; each is done whole)
 
@@ -441,7 +441,7 @@ No time estimate: there is no data, and every number would be a guess (LOW).
   About five or six plugins. MEDIUM.
 - **B (a regional bank):** **not a fit today.** Because the customer runs the cell inside their own network, a system behind a VPN
   needs no remote executor, and the model goes through an internal gateway or Bedrock/Vertex. What remains is the
-  platform (the jail needs seccomp/AppArmor off, against the Pod Security Baseline; no container image), identity (no SSO;
+  platform (no container image, and no isolation between agents and the host, ADR-0138), identity (no SSO;
   `-autonomous` is on by default so the Chair answers permission requests for the owner), and two-person approval. Works-council
   codetermination (BetrVG) and a regulator's approval requirements are outside the design. HIGH.
 - **C (a Vietnamese shop with Shopify, VNPay, Zalo, Facebook):** work is files in a repo and the result is a landing (K6), so no new
@@ -498,6 +498,6 @@ and e-commerce, banks are outside.
 
 Reviews of this design: `docs/archive/council/design-review-01-security.md`, `design-review-01b-security.md`,
 `design-review-02-architecture.md`, `design-review-03-universality.md`. Code read again for it: `crates/grant/src/lib.rs`,
-`crates/agent/src/agent.rs`, `crates/jail/src/sandbox_darwin.rs`, `crates/jail/src/namespaces_linux.rs`,
+`crates/agent/src/agent.rs`,
 `crates/model/src/actor.rs`, `crates/source/src/gate.rs`, `crates/orch/src/grants.rs`, `crates/orch/src/source_calls.rs`,
 `crates/egress/src/egress.rs`, `crates/remit/src/flags.rs`, `crates/childenv/src/childenv.rs`.

@@ -12,3 +12,6 @@ workspace = true
 rustix = { version = "1.1.6", features = ["process"] }
 thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["process", "time", "io-util", "macros"] }
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["process", "time", "io-util", "macros", "rt"] }

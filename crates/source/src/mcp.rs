@@ -1,8 +1,8 @@
 //! An outside MCP server as an extension (ADR-0077): Remit is its client, and each of its tools is served as
 //! `<extension>_<tool>` through the gate like any tool of a source.
 //!
-//! The record is an extension's (`Extension::mcp`): the transport, and for stdio the command line, run as a program in the
-//! jail (form T2: the connection's variables in its environment, egress to its address variables only, nothing of the
+//! The record is an extension's (`Extension::mcp`): the transport, and for stdio the command line, run as a program (form
+//! T2: the connection's variables in its environment, its proxy reaching its address variables only, nothing of the
 //! server's environment), or for HTTP the variable that holds the URL and the headers that carry the credential, sent by the
 //! backend alone (T0). One session per connection, opened at its first use and again after it closed.
 //!
@@ -56,7 +56,7 @@ pub struct ExtensionMcp {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "transport", rename_all = "lowercase")]
 pub enum McpTransport {
-    /// A command the jail runs, speaking MCP on its stdio.
+    /// A command Remit runs, speaking MCP on its stdio.
     Stdio {
         command: String,
         #[serde(default, deserialize_with = "crate::null_json::null_as_zero")]
@@ -86,8 +86,6 @@ const MAX_ARG_BYTES: usize = 4096;
 const MAX_TOOLS: usize = 128;
 /// A pinned description, in bytes: what an owner reads in a change item.
 const MAX_DESCRIPTION: usize = 4096;
-/// Processor time a stdio server may use over its life: it serves many calls.
-pub(crate) const SERVER_LIFE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
 
 impl ExtensionMcp {
     /// Whether the record is one Remit can run: a command it can name, or a URL variable and header variables the
@@ -101,7 +99,7 @@ impl ExtensionMcp {
                     || (command.contains('/') && !command.starts_with('/'))
                 {
                     return fail!(
-                        "mcp.command {:?} is not a program: a bare name looked up along the jail's PATH, or an absolute path",
+                        "mcp.command {:?} is not a program: a bare name looked up along the program's PATH, or an absolute path",
                         limit(command, 80)
                     );
                 }
@@ -269,7 +267,7 @@ pub(crate) struct McpSource {
 pub(crate) struct Live {
     client: RunningService<RoleClient, ()>,
     fresh: Vec<ExtensionTool>,
-    /// The jailed program and its scratch directory, for stdio: dropped, the program ends.
+    /// The running program and its scratch directory, for stdio: dropped, the program ends.
     _hold: Mutex<Option<(Box<dyn Send>, tempfile::TempDir)>>,
 }
 
@@ -367,7 +365,7 @@ impl McpSource {
         })
     }
 
-    /// The jail's run of a stdio server: its command, the connection's variables and nothing of the server's environment,
+    /// The run of a stdio server: its command, the connection's variables and nothing of the server's environment,
     /// egress to the connection's addresses.
     fn job(&self, command: &str, args: &[String], dir: &tempfile::TempDir) -> Job {
         let d = dir.path().to_string_lossy().into_owned();
@@ -390,9 +388,9 @@ impl McpSource {
                 .filter(|v| v.address)
                 .filter_map(|v| egress_of(&self.env.get(&v.name)))
                 .collect(),
-            read_only: Vec::new(),
             inject: None,
-            timeout: SERVER_LIFE,
+            // No deadline: the server lives until its session drops it.
+            timeout: std::time::Duration::MAX,
             max_output: OUTPUT_MAX,
         }
     }

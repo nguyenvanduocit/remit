@@ -2467,14 +2467,13 @@ export type Retry = {
 export type Landing = {
   id: string;
   chainId: string;
-  /**
-   * The repository as the chain opened it (`RepoWork::repo`), its forge's host and path there, and the branch it
-   * lands on: the queue it waits in is the host, path and base's.
-   */
+  /** The repository as the chain opened it (`RepoWork::repo`). */
   repo: string;
-  host: string;
-  project: string;
-  base: string;
+  /**
+   * The queue it waits in: its forge's host, its path there and the branch it lands on. None for a version of a folder
+   * worked in place (ADR-0137): its files are already where they land, so it has no queue, batch or push.
+   */
+  queue?: QueueKey;
   version: LandingVersion;
   /** The Chair's rating of this version, for what the owner reads first; the queue does not order by it. */
   priority?: Priority;
@@ -2645,6 +2644,13 @@ export type StagePlan = {
   rollback: string;
   /** This stage takes an earlier one back: it lands while a stage bakes and while a guardrail is breached. */
   undo: boolean;
+};
+
+/** The queue of one repository and base branch: one writer lands there at a time. */
+export type QueueKey = {
+  host: string;
+  project: string;
+  base: string;
 };
 
 /**
@@ -3137,10 +3143,34 @@ export type ChainKind = 'work' | 'chore' | 'objective' | 'author' | 'coach' | 'a
  */
 export type Unjudged = 'failed' | 'limit' | 'owner' | 'stalled' | 'nocheck';
 
-/** A chain's worktree of one repository, on a branch only that chain uses. What it lands are landings of their own. */
+/**
+ * A chain's work on one repository, and where it lives (ADR-0137): a worktree of a clone on a branch only that chain uses,
+ * or the user's own folder worked in place. What it lands are landings of their own.
+ */
 export type RepoWork = {
   /** Catalog id. */
   repo: string;
+  place: WorkPlace;
+  /** The submit in progress: one at a time per repository. */
+  submit?: Submit;
+};
+
+/** Where a chain's work on a repository lives. */
+export type WorkPlace =
+  /** A worktree of Remit's clone, on a branch of the chain's own. */
+  | ({ kind: 'worktree' } & Worktree)
+  /**
+   * A folder on the machine, worked in place: no forge, no clone, no branch. `path` is absolute; `opened` is the
+   * checkpoint taken when the chain opened it, the folder as the chain found it.
+   */
+  | {
+      kind: 'folder';
+      path: string;
+      opened: string;
+    };
+
+/** A chain's worktree of one repository, on a branch only that chain uses. */
+export type Worktree = {
   /** Its path on its forge: GitLab's group/project, GitHub's owner/name. */
   project: string;
   /** The forge's host. */
@@ -3150,8 +3180,6 @@ export type RepoWork = {
   branch: string;
   /** The branch its changes land on. */
   base: string;
-  /** The submit in progress: one at a time per repository. */
-  submit?: Submit;
 };
 
 /**

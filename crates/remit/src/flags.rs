@@ -9,14 +9,6 @@ use std::time::Duration;
 
 use crate::dash_flags::{self, Flag, Kind, Parsed};
 
-/// The file the process manager (pm2) starts the server from, with the flags it runs with, kept in the data directory beside
-/// the database. A session that rewrote it would decide what the server runs at its next start.
-const SUPERVISOR_CONFIG: &str = "ecosystem.config.cjs";
-
-/// The directory the process manager keeps its state in under the user's home unless PM2_HOME says otherwise: it holds the
-/// environment of every app it runs, the server's credentials among it.
-const SUPERVISOR_STATE_NAME: &str = ".pm2";
-
 /// The node's key (ADR-0072 decision 12), in the data directory.
 pub const NODE_KEY: &str = "node.key";
 
@@ -72,10 +64,8 @@ pub struct Flags {
     pub database: String,
     pub owner_key_file: String,
     pub node_key_file: String,
-    /// No flag: set by `with_paths`: the binary being run, the process manager's state directory and the launchd job.
+    /// No flag: set by `with_paths`: the binary being run.
     pub executable: String,
-    pub supervisor_state: String,
-    pub launch_agent: String,
 }
 
 /// The flags, with this machine's defaults: home is the user's home, claude_config_dir the process's CLAUDE_CONFIG_DIR.
@@ -276,7 +266,7 @@ pub fn defs(home: &Path, claude_config_dir: &str) -> Vec<Flag> {
             "openrouter-key-file",
             Str,
             s(""),
-            "file holding the OpenRouter key memory is searched by meaning and judged for relevance with (qwen3-embedding-8b, qwen3-reranker-8b), read at each use and hidden from every session; with no key memory is searched by words and links (default <data>/openrouter.key)",
+            "file holding the OpenRouter key memory is searched by meaning and judged for relevance with (qwen3-embedding-8b, qwen3-reranker-8b), read at each use; with no key memory is searched by words and links (default <data>/openrouter.key)",
         ),
         f(
             "datadog-env",
@@ -383,8 +373,8 @@ impl Flags {
     }
 
     /// Fills the paths left to their defaults and makes each absolute, so the rules that keep agents from Remit's own
-    /// secrets name the files themselves. `executable` is this binary, `home` the user's home, `pm2_home` PM2_HOME.
-    pub fn with_paths(mut self, executable: &Path, home: &Path, pm2_home: &str) -> Result<Flags, String> {
+    /// secrets name the files themselves. `executable` is this binary.
+    pub fn with_paths(mut self, executable: &Path) -> Result<Flags, String> {
         if self.jira_env.is_empty() && !self.vault.is_empty() {
             self.jira_env = join(&self.vault, &["secret", "atlassian", "jira.env"]);
         }
@@ -423,40 +413,7 @@ impl Flags {
             }
         }
         self.executable = executable.display().to_string();
-        self.supervisor_state = if pm2_home.is_empty() {
-            home.join(SUPERVISOR_STATE_NAME).display().to_string()
-        } else {
-            pm2_home.to_owned()
-        };
-        self.launch_agent = home
-            .join("Library")
-            .join("LaunchAgents")
-            .join("remit.plist")
-            .display()
-            .to_string();
-        self.require_writable_workplaces(&cwd)?;
         Ok(self)
-    }
-
-    /// Fails when a directory sessions work in (the data directory, the vault) lies inside the paths the server runs from:
-    /// they would read it and could not write it, and no session could work.
-    fn require_writable_workplaces(&self, cwd: &Path) -> Result<(), String> {
-        for work in [&self.data_dir, &self.vault] {
-            if work.is_empty() {
-                continue;
-            }
-            let abs = absolute(cwd, work);
-            for server in server_files(Path::new(&self.executable)) {
-                if abs.starts_with(&server) {
-                    return Err(format!(
-                        "{} is inside {}, which sessions can read and not change, so they could not work there: move it, or run the binary from elsewhere",
-                        abs.display(),
-                        server.display()
-                    ));
-                }
-            }
-        }
-        Ok(())
     }
 
     /// The vault's directory of credential env files; empty when there is no vault.
@@ -504,56 +461,6 @@ impl Flags {
     /// The directory `remit update` installs releases in, keeps its lock and writes its outcome to (ADR-0087).
     pub fn releases_dir(&self) -> PathBuf {
         Path::new(&self.data_dir).join("releases")
-    }
-
-    /// The paths a session cannot reach as the machine's user could (ADR-0018). `hide` cannot be read (and a hidden file
-    /// cannot be renamed or deleted): the sealing key and its backups, the owner key, the node key, the database with its
-    /// write-ahead files, snapshots and hand-made copies, the files of source, Jira and OpenRouter credentials, the vault's secret
-    /// directory, the client keys' files, the process manager's config, copies and state, the launchd job, the logs, the
-    /// employees' old memory and the releases directory (its binaries, the update's lock, outcome and links, which a
-    /// session that wrote them would install or forge). `read_only` reads as it is and cannot be changed: the directory of
-    /// the server's binary (or the checkout whose bin/ it is) and the extensions' programs. The data directory itself is in neither: the chains' work lives in it.
-    pub fn protected_from_agents(&self) -> (Vec<String>, Vec<String>) {
-        let data = Path::new(&self.data_dir);
-        let db_name = Path::new(&self.database)
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let mut hide = vec![
-            self.secret_key_file.clone(),
-            self.key_backup_dir.clone(),
-            store::snapshot_dir(Path::new(&self.database)).display().to_string(),
-            self.source_env.clone(),
-            self.jira_env.clone(),
-            self.vault_secrets(),
-            self.database.clone(),
-            format!("{}-wal", self.database),
-            format!("{}-shm", self.database),
-            self.owner_key_file.clone(),
-            self.node_key_file.clone(),
-            self.openrouter_key_file.clone(),
-        ];
-        hide.extend(with_prefix(data, &format!("{db_name}.")));
-        hide.extend(with_prefix(data, SUPERVISOR_CONFIG));
-        hide.extend(with_prefix(data, "agents.log"));
-        hide.extend(with_prefix(data, "remit.log"));
-        hide.extend(
-            self.client_keys()
-                .iter()
-                .map(|p| clean(Path::new(p)).display().to_string()),
-        );
-        hide.push(self.supervisor_state.clone());
-        hide.push(self.launch_agent.clone());
-        hide.extend(self.secret_dir_list());
-        hide.push(data.join("employees").display().to_string());
-        hide.push(self.releases_dir().display().to_string());
-        hide.retain(|p| !p.is_empty());
-        let mut read_only: Vec<String> = server_files(Path::new(&self.executable))
-            .iter()
-            .map(|p| p.display().to_string())
-            .collect();
-        read_only.push(self.ext_dir().display().to_string());
-        (hide, read_only)
     }
 
     /// The forge of each host -forges names, each driven through its program.
@@ -612,30 +519,6 @@ pub fn require_efforts(named: &[(&str, &str)]) -> Result<(), String> {
         provider::Effort::parse(effort).map_err(|e| format!("{flag}: {e}"))?;
     }
     Ok(())
-}
-
-/// The paths the server is run and built from, given its binary: the binary's directory, or the checkout around it when that
-/// directory is the checkout's bin/ (a Cargo.toml or go.mod beside it), which holds the sources the next build compiles.
-pub fn server_files(executable: &Path) -> Vec<PathBuf> {
-    let bin = executable.parent().unwrap_or(Path::new("/")).to_path_buf();
-    if let Some(checkout) = bin.parent()
-        && (checkout.join("Cargo.toml").exists() || checkout.join("go.mod").exists())
-    {
-        return vec![checkout.to_path_buf()];
-    }
-    vec![bin]
-}
-
-/// The entries of dir whose names start with prefix.
-fn with_prefix(dir: &Path, prefix: &str) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    entries
-        .flatten()
-        .filter(|e| e.file_name().to_string_lossy().starts_with(prefix))
-        .map(|e| e.path().display().to_string())
-        .collect()
 }
 
 fn join(base: &str, parts: &[&str]) -> String {

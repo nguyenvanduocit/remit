@@ -42,7 +42,7 @@ Google when the server is set up for it (below). A mentor comes in from their ow
 ./bin/remit   # prints: open http://127.0.0.1:4320/#key=…
 ```
 
-The first start makes an owner key in `<data>/owner.key` (mode 0600), which every agent session has hidden from it. Open the
+The first start makes an owner key in `<data>/owner.key` (mode 0600; an agent session runs as your OS user and can read it, ADR-0138). Open the
 link the server prints in its terminal: the browser keeps the key and drops it from the address, and comes in from then on.
 Started by a supervisor (no terminal), the server logs where the key is instead of printing it; add `#key=` and the file's
 content to the address. Deleting the file makes a new key at the next start, which shuts out every browser that held the old
@@ -127,7 +127,7 @@ Every flag has a default; `./bin/remit -h` prints them all. The table below is w
 | `-jira-env` |  | env file with ATLASSIAN_HOST, ATLASSIAN_EMAIL, ATLASSIAN_TOKEN the issues capability's list_issues reads Jira with (default <vault>/secret/atlassian/jira.env) |
 | `-jira-jql` |  | the JQL of the Jira issues list_issues shows (without it Jira is not read) |
 | `-source-env` |  | env file with the credentials of the sources agents read the outside world through (MONGODB_URI, STARROCKS_HOST, BYTEBASE_URL, ...; which variables each source needs: crates/source, ADR-0015). The default connection of each source reads the values the owner entered in his inbox first, then the process environment, this file and the vault's own env files (devops/grafana.env, devops/coroot.env, devops/datadog.env, services/intercom.env, services/amplitude.env); a named connection reads only the values entered for it (ADR-0017). Agents are asked before they read it (default <data>/sources.env) |
-| `-openrouter-key-file` |  | file holding the OpenRouter key memory is searched by meaning and judged for relevance with (qwen3-embedding-8b, qwen3-reranker-8b), read at each use and hidden from every session; with no key memory is searched by words and links (default <data>/openrouter.key) |
+| `-openrouter-key-file` |  | file holding the OpenRouter key memory is searched by meaning and judged for relevance with (qwen3-embedding-8b, qwen3-reranker-8b), read at each use; with no key memory is searched by words and links (default <data>/openrouter.key) |
 | `-datadog-env` |  | the env every record sent to Datadog is tagged with: the server's logs and spans and the agents' telemetry, each naming its chain, sent to the site of the Datadog source's default connection once the owner enters its key (ADR-0119) (empty: this machine's host name) |
 | `-update-repo` |  | the GitHub repository this server runs the releases of, owner/name: a release of it that its procedure published is installed here as its last step, and taken back here when it breaches (ADR-0116) (empty: this server does not run from releases, as a dev instance) |
 | `-update-restart` |  | the command, run by sh -c, with which this server's supervisor restarts it on <data>/releases/current, as remit update -restart takes it: set, a release of -update-repo is installed here (empty: nothing restarts this server; needs -update-repo) |
@@ -221,7 +221,7 @@ The server is a Rust workspace of small crates (`crates/`, ADR-0072); each crate
 | `crates/signal` | Signals and subscriptions: the pure evaluation behind every wake, start and firing |
 | `crates/source` | The tools through which agents read and act on outside systems, behind one gate |
 | `crates/grant` | The pure decision of what a chain may do on a connection, and the effect ladder |
-| `crates/jail` | The sandbox programs and sessions run in, one adapter per OS; `crates/egress` is the proxy out of it |
+| `crates/egress` | The egress gate and the injecting proxy, on a loopback port, through which a program reaches a connection |
 | `crates/plugin`, `crates/plugin-sdk` | The runner of the plugins the owner applied, and what a plugin is written with |
 | `crates/bundled` | The plugins that ship in the binary (GitHub, GitLab, Intercom, Amplitude, Google Analytics, script, forge), run in the server's own process |
 | `crates/forge` | One adapter per forge (GitLab, GitHub), driven through its own command line |
@@ -243,7 +243,7 @@ The server is a Rust workspace of small crates (`crates/`, ADR-0072); each crate
 | `crates/importer` | Reads the agents and skills of this machine's Claude Code configuration into the library |
 | `crates/skills` | What a skill is: the `SKILL.md` format, the rules it must meet, the plugin directory skills are rendered into |
 | `crates/childenv` | What a child process an agent can steer inherits of the server's environment |
-| `crates/procgroup` | Runs commands as process groups, so ending one ends all it started |
+| `crates/procgroup` | Runs commands as process groups, so ending one ends all it started; `Program` is the one runner every child but a session starts through |
 | `crates/provider` | The catalog of models agents run on, each with its tier |
 | `crates/link`, `crates/link-quic` | The protocol every Remit peer speaks, and its driver over WebTransport |
 | `crates/wire` | The one definition of what crosses the link: the contracts `app`, `runtime` and `plugin` |

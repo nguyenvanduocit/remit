@@ -32,7 +32,7 @@ pub struct Settings {
     pub certificate_hash: String,
     /// Minted for this start of the core.
     pub key: String,
-    /// The claude command, the agents' config dir, and the paths hidden from and read-only to sessions.
+    /// The claude command and the agents' config dir.
     pub agents: AgentFlags,
     /// -claude-config-dir: the login linked into the agents' config dir on Linux.
     pub claude_login: String,
@@ -87,16 +87,13 @@ pub async fn run(offset: time::UtcOffset) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// Starts every session on Claude Code, in the config dir of its account, with what f hides from it and keeps read-only,
-/// an employee's on its memory.
+/// Starts every session on Claude Code, in the config dir of its account.
 fn launcher(f: &AgentFlags, stderr: claudecode::Stderr) -> agent::ClaudeLauncher {
     let accounts = f.accounts();
     agent::ClaudeLauncher {
         command: f.command(),
         home: Some(Arc::new(move |id: &str| accounts.home(id).display().to_string())),
         env: Vec::new(),
-        hide: f.hide.clone(),
-        read_only: f.read_only.clone(),
         stderr: Some(stderr),
         now: Arc::new(jiff::Timestamp::now),
         store: Arc::new(claudecode::Store::of),

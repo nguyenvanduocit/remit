@@ -13,11 +13,12 @@ use std::sync::Arc;
 use model::{
     Actor, Approval, Card, Cause, Chain, ChainStatus, ChangeGates, DecisionKind, Edge, EdgeKind, Finding,
     FindingBlocker, FindingStatus, Gate, InboxItem, InboxKind, InboxOption, InboxStatus, Landing, LandingState,
-    ReasonCode, RepoWork, Verdict, VerdictRole, by_agent,
+    ReasonCode, Verdict, VerdictRole, WorkPlace, Worktree, by_agent,
 };
 use serde::Deserialize;
 
 use crate::Shipping;
+use crate::folder::landed_in_place;
 use crate::goal::not_met;
 use crate::land::{approve, last_element, not_open_text, work_named};
 use capability::judge_store::store_access_error;
@@ -194,44 +195,44 @@ const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 /// URL, fetch rule and refs the agent can write. It is fetched into the clone when the clone lacks it, within
 /// FETCH_TIMEOUT; a clone whose origin does not bring it is refused, as what it fetches is not the base. A commit is named
 /// by its content, so once the clone holds it, what git reads of it is the forge's.
-pub(crate) async fn base_on(f: &Arc<dyn Forge>, rw: &RepoWork) -> Result<String, String> {
-    let at = match tokio::time::timeout(FORGE_TIMEOUT, f.branch_head(&remote_of(rw), &rw.base)).await {
+pub(crate) async fn base_on(f: &Arc<dyn Forge>, w: &Worktree) -> Result<String, String> {
+    let at = match tokio::time::timeout(FORGE_TIMEOUT, f.branch_head(&remote_of(w), &w.base)).await {
         Ok(Ok(at)) => at,
-        Ok(Err(err)) => return Err(format!("{} did not say where {} stands: {err}", f.name(), rw.base)),
+        Ok(Err(err)) => return Err(format!("{} did not say where {} stands: {err}", f.name(), w.base)),
         Err(_) => {
             return Err(format!(
                 "{} did not say where {} stands in {}s",
                 f.name(),
-                rw.base,
+                w.base,
                 FORGE_TIMEOUT.as_secs()
             ));
         }
     };
     if !commit_id(&at) {
-        return Err(format!("{} named {at:?} as the commit {} stands at", f.name(), rw.base));
+        return Err(format!("{} named {at:?} as the commit {} stands at", f.name(), w.base));
     }
     let commit = format!("{at}^{{commit}}");
-    if plain_git(&rw.path, &["cat-file", "-e", &commit]).await.is_ok() {
+    if plain_git(&w.path, &["cat-file", "-e", &commit]).await.is_ok() {
         return Ok(at);
     }
     // git runs in a process group of its own, so the fetch dropped at the deadline ends with everything it started
-    let fetched = tokio::time::timeout(FETCH_TIMEOUT, git(&rw.path, &["fetch", "-q", "origin", &rw.base]))
+    let fetched = tokio::time::timeout(FETCH_TIMEOUT, git(&w.path, &["fetch", "-q", "origin", &w.base]))
         .await
         .unwrap_or_else(|_| {
             Err(format!(
                 "the fetch of {} took more than {}s",
-                rw.base,
+                w.base,
                 FETCH_TIMEOUT.as_secs()
             ))
         });
-    if plain_git(&rw.path, &["cat-file", "-e", &commit]).await.is_ok() {
+    if plain_git(&w.path, &["cat-file", "-e", &commit]).await.is_ok() {
         return Ok(at);
     }
     Err(format!(
         "{} stands at {at} on {}, and the clone's origin does not bring that commit, so the clone's origin is not {}{}",
-        rw.base,
+        w.base,
         f.name(),
-        rw.project,
+        w.project,
         fetched.err().map(|e| format!(": {e}")).unwrap_or_default()
     ))
 }
@@ -417,11 +418,12 @@ pub(crate) fn merge_or_deploy(b: &FindingBlocker) -> bool {
     matches!(b, FindingBlocker::Write | FindingBlocker::Deploy)
 }
 
-/// Whether a chain whose landings are landings has a change on its way to its base, or on it.
+/// Whether a chain whose landings are landings has a change on its way to its base, or on it: a folder worked in place has
+/// no base to reach and nothing to deploy.
 pub(crate) fn holds_landing(landings: &[Landing]) -> bool {
     landings
         .iter()
-        .any(|l| l.reverts.is_none() && (l.state.open() || l.on_base()))
+        .any(|l| l.queue.is_some() && l.reverts.is_none() && (l.state.open() || l.on_base()))
 }
 
 /// How many times a change by one card is sent back before the card is raised a tier (ADR-0118, the climb): a card that
@@ -456,10 +458,10 @@ pub(crate) fn gate_rounds(approvals: &[Approval], repo: &str, role: VerdictRole)
 }
 
 impl Shipping {
-    /// The commit rw's base branch stands at on its forge (`base_on`).
-    pub(crate) async fn forge_base(&self, rw: &RepoWork) -> Result<String, String> {
-        let f = self.forge_on(&rw.host).map_err(|e| e.to_string())?;
-        base_on(&f, rw).await
+    /// The commit the worktree w's base branch stands at on its forge (`base_on`).
+    pub(crate) async fn forge_base(&self, w: &Worktree) -> Result<String, String> {
+        let f = self.forge_on(&w.host).map_err(|e| e.to_string())?;
+        base_on(&f, w).await
     }
 
     /// What is settled after chain ch ends: the landing (write) and the deploy of its change, until its change is marked
@@ -509,8 +511,13 @@ impl Shipping {
         let data_tools = self.reach.data_tools(&chain).await?;
         verdict_findings_error(i.verdict, &i.findings, &data_tools).map_err(Error::refused)?;
         let change = tokio::time::timeout(std::time::Duration::from_secs(120), async {
-            let base = self.forge_base(&rw).await?;
-            change_id(&rw.path, &base).await
+            match &rw.place {
+                WorkPlace::Worktree(w) => {
+                    let base = self.forge_base(w).await?;
+                    change_id(&w.path, &base).await
+                }
+                WorkPlace::Folder { .. } => self.folder_change(&chain.id, &rw).await,
+            }
         })
         .await
         .map_err(|_| Error::refused("reading the change took more than 2 minutes"))?
@@ -634,7 +641,19 @@ impl Shipping {
         if let Some(mut l) = judged {
             if approve(&mut l, &approvals, self.cfg.require_approvals, round.as_ref(), a.at) {
                 contends = l.state == LandingState::Contending;
-                ready = (l.state == LandingState::Ready).then(|| l.queue());
+                ready = l.queue.clone().filter(|_| l.state == LandingState::Ready);
+                if l.state == LandingState::Landed {
+                    // a version of a folder worked in place landed with this verdict: its Chair is told
+                    landed_in_place(&held.chain, &l, &mut rec)?;
+                    rec.messages.push(chains::outbox::Message {
+                        to: held.chain.chair_id.clone(),
+                        home: chain_id.to_owned(),
+                        title: "Landed".to_owned(),
+                        text: crate::land::approved_text(&l),
+                        by: chains::outbox::by_remit(),
+                        ..chains::outbox::Message::default()
+                    });
+                }
             }
             l.updated_at = a.at;
             rec.landings.push(LandingWrite {

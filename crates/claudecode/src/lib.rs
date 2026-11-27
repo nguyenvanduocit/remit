@@ -3,11 +3,9 @@
 //! knows nothing of Remit. The process signs in as Claude Code on this machine does (its config dir): no key or token
 //! passes here.
 //!
-//! What the process can reach of its parent is decided in two places. Its environment is the names it needs of its
-//! parent's (`childenv::of`), never the whole; `Options::hide` lists paths that it and every process it starts cannot
-//! read (the jail's `Mask`): the files in which Remit keeps its secrets; and `Options::read_only` lists paths it reads
-//! and cannot change: the files the server runs from. A process that was asked to hide or protect paths and cannot be
-//! isolated does not start. It runs as the leader of its own process group, which ends whole (ADR-0018).
+//! Its environment is the names it needs of its parent's (`childenv::of`), never the whole. It runs as the machine's user
+//! does, with the user's files and network (ADR-0138), as the leader of its own process group, which ends whole
+//! (ADR-0018).
 
 mod conn;
 mod context;
@@ -39,11 +37,6 @@ pub enum Error {
     Encode(#[from] serde_json::Error),
     #[error("start claude: {0}")]
     Start(#[source] procgroup::Error),
-    #[error(
-        "start claude isolated from Remit's secrets and server (it needs unprivileged user namespaces on Linux, \
-         sandbox-exec on macOS, ADR-0021): {0}"
-    )]
-    Isolate(#[source] Box<dyn std::error::Error + Send + Sync>),
     /// The process ended; `said` is what the last result that was an error said, when one came before the end.
     #[error("claude code process ended{}", ended_with(said))]
     Closed { said: Vec<String> },

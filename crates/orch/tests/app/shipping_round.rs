@@ -11,7 +11,7 @@ use chains::git::CheckRunner;
 use chains::step::replace_with;
 use model::{
     Card, Chain, ChainStatus, Check, CheckKind, Gate, KeyResult, Landing, LandingState, RepoWork, ReturnReason,
-    RoundState, Serves, Signs,
+    RoundState, Serves, Signs, WorkPlace, Worktree,
 };
 use orch::propose::{ProposeInput, ServesInput};
 use shipping::gate::VerdictInput;
@@ -181,12 +181,14 @@ async fn a_rounds_pick_lands_and_the_other_attempt_never_does() {
         sh(&wt, &["commit", "-q", "-m", "the greeting"]);
         let rw = RepoWork {
             repo: "remit".to_owned(),
-            project: PROJECT.to_owned(),
-            host: HOST.to_owned(),
-            path: s(&wt),
-            branch,
-            base: "main".to_owned(),
-            ..RepoWork::default()
+            place: WorkPlace::Worktree(Worktree {
+                project: PROJECT.to_owned(),
+                host: HOST.to_owned(),
+                path: s(&wt),
+                branch,
+                base: "main".to_owned(),
+            }),
+            submit: None,
         };
         r.o.shipping
             .record_work(&ch.id, "remit", replace_with(rw), Vec::new())
@@ -272,7 +274,7 @@ async fn a_rounds_pick_lands_and_the_other_attempt_never_does() {
         "{:?}",
         back.iter().map(|l| &l.state).collect::<Vec<_>>()
     );
-    r.o.shipping.kick_queue(landed.queue());
+    r.o.shipping.kick_queue(landed.queue.clone().unwrap());
     for _ in 0..10 {
         tokio::time::sleep(Duration::from_millis(100)).await;
         let tree = sh(&origin, &["ls-tree", "--name-only", "main"]);

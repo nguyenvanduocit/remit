@@ -131,8 +131,8 @@ impl Options {
         self
     }
 
-    /// Offers the languages whose interpreter the host's jail shows: `has` says whether a program of that name is there
-    /// (the orchestrator knows what the jail mounts). Without any the script tool is not offered.
+    /// Offers the languages whose interpreter the host has: `has` says whether a program of that name is on the PATH a
+    /// script runs with. Without any the script tool is not offered.
     #[must_use]
     pub fn with_script_interpreters(mut self, has: impl Fn(&str) -> bool) -> Self {
         self.languages = script_languages().into_iter().filter(|l| has(l.binary)).collect();

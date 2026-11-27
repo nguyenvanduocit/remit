@@ -39,13 +39,6 @@ pub struct Options {
     pub cwd: String,
     /// The process's environment besides the names it takes from its parent's (`childenv::of`), `NAME=value`.
     pub env: Vec<String>,
-    /// The paths that the process and everything it starts cannot read, write, rename or delete. With `read_only` empty
-    /// too, nothing is hidden and the process starts as any child. A path that does not exist hides nothing, so a
-    /// directory is listed to hide the files made in it later.
-    pub hide: Vec<String>,
-    /// The paths that stay readable to the process and everything it starts, and cannot be changed through that path.
-    /// List the topmost directory that must stay as it is; a path may not be in `hide` too.
-    pub read_only: Vec<String>,
     pub model: String,
     /// `--effort`: low, medium, high, xhigh or max, checked by the caller; empty leaves Claude Code's default.
     pub effort: String,

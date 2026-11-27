@@ -1,6 +1,6 @@
 // Whole records for the verify seeds: a seed names what its case is about and takes the rest as an empty record, the
 // way the server's types default it (crates/model: `#[serde(default)]`), so the defaults of each record live here once.
-import type { FiringLine, ReadingLine, SignalBoard, SignalLine, SubscriptionLine, AccountHealth, Activity, Actor, ActorKind, Agent, Card, Ceiling, Chain, ChainRead, Change, CheckBack, ClientKey, Decision, DecisionRead, Draft, Employee, EmployeeRead, Event, EventKind, EventRead, EventSignal, EventStatus, Feedback, Finding, Help, Horizon, InboundEvent, InboxItem, InboxOption, Landing, LandingRead, LandingVersion, Loadout, Mentor, NearMiss, Objective, PermissionAsk, Playbook, Project, RepoWork, Retrospective, RetrospectiveRead, Retry, Seed, Sensor, Workflow, WorkflowStep } from '../src/core/generated/types.generated';
+import type { FiringLine, ReadingLine, SignalBoard, SignalLine, SubscriptionLine, AccountHealth, Activity, Actor, ActorKind, Agent, Card, Ceiling, Chain, ChainRead, Change, CheckBack, ClientKey, Decision, DecisionRead, Draft, Employee, EmployeeRead, Event, EventKind, EventRead, EventSignal, EventStatus, Feedback, Finding, Help, Horizon, InboundEvent, InboxItem, InboxOption, Landing, LandingRead, LandingVersion, Loadout, Mentor, NearMiss, Objective, PermissionAsk, Playbook, Project, RepoWork, Retrospective, RetrospectiveRead, Retry, Seed, Sensor, Workflow, WorkflowStep, Worktree } from '../src/core/generated/types.generated';
 
 /** Who did something: the owner by his account and channel, an agent or the Assistant by card id, Remit by its part. */
 export const actorOf = (kind: ActorKind, who = '', via = ''): Actor => ({ kind, who, via });
@@ -31,11 +31,13 @@ export const decisionRecord = (fields: Pick<Decision, 'id' | 'chainId' | 'kind' 
 /** A decision as a chain's stream reads it: whether it is an outcome of the chain's work is the server's to say. */
 export const decisionRead = (decision: Decision, outcome: boolean): DecisionRead => ({ decision, outcome });
 
-/** A repository a chain works in, by its name; its branch, as the case needs. */
-export const repoRecord = (fields: Pick<RepoWork, 'repo'> & Partial<RepoWork>): RepoWork => ({
-  project: '', host: '', path: '', branch: '', base: '',
-  ...fields,
+/** A repository a chain works in, by its name, as a worktree; its branch, as the case needs. */
+export const repoRecord = ({ repo, submit, ...worktree }: Pick<RepoWork, 'repo'> & Partial<Worktree> & Pick<RepoWork, 'submit'>): RepoWork => ({
+  repo, submit, place: { kind: 'worktree', project: '', host: '', path: '', branch: '', base: '', ...worktree },
 });
+
+/** A folder a chain works in place, by its name. */
+export const folderRecord = (repo: string, path: string): RepoWork => ({ repo, place: { kind: 'folder', path, opened: 'a1b2c3d4e5f6' } });
 
 /** A landing: its id, chain, repository, state and time, and its version's number and title; the rest the queue writes, as
  * the case needs. */
@@ -45,7 +47,7 @@ export const landingRead = (landing: Landing, more: Omit<LandingRead, 'landing'>
 
 export const landingRecord = ({ version, ...fields }: Pick<Landing, 'id' | 'chainId' | 'repo' | 'state' | 'createdAt'> & Partial<Omit<Landing, 'version'>>
   & { version: Pick<LandingVersion, 'number' | 'title'> & Partial<LandingVersion> }): Landing => ({
-  host: 'gitlab.example.com', project: fields.repo, base: 'main', priorityWhy: '', updatedAt: fields.createdAt, rev: 1,
+  queue: { host: 'gitlab.example.com', project: fields.repo, base: 'main' }, priorityWhy: '', updatedAt: fields.createdAt, rev: 1,
   ...fields,
   version: { from: '', forked: '', change: '', gates: ['reviewer', 'qc'], verdicts: [], by: [], description: '', paths: [], judged: [], ...version },
 });

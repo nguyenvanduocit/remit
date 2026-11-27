@@ -159,12 +159,67 @@ text_enum! {
     }
 }
 
-/// A chain's worktree of one repository, on a branch only that chain uses. What it lands are landings of their own.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
+/// A chain's work on one repository, and where it lives (ADR-0137): a worktree of a clone on a branch only that chain uses,
+/// or the user's own folder worked in place. What it lands are landings of their own.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RepoWork {
     /// Catalog id.
     pub repo: String,
+    pub place: WorkPlace,
+    /// The submit in progress: one at a time per repository.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub submit: Option<Submit>,
+}
+
+impl RepoWork {
+    /// The directory the chain's agents work in: the worktree, or the folder itself.
+    pub fn dir(&self) -> &str {
+        match &self.place {
+            WorkPlace::Worktree(w) => &w.path,
+            WorkPlace::Folder { path, .. } => path,
+        }
+    }
+
+    /// The worktree it is, when it lives in a clone.
+    pub const fn worktree(&self) -> Option<&Worktree> {
+        match &self.place {
+            WorkPlace::Worktree(w) => Some(w),
+            WorkPlace::Folder { .. } => None,
+        }
+    }
+
+    /// Where the work is, as a judge or the owner reads it.
+    pub fn where_words(&self) -> String {
+        match &self.place {
+            WorkPlace::Worktree(w) => format!("worktree {}, branch {} from {}", w.path, w.branch, w.base),
+            WorkPlace::Folder { path, .. } => format!("the folder {path}, worked in place (no branch)"),
+        }
+    }
+
+    /// Whether it works in place in the user's folder.
+    pub const fn in_place(&self) -> bool {
+        matches!(self.place, WorkPlace::Folder { .. })
+    }
+}
+
+/// Where a chain's work on a repository lives.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(remote = "Self", rename_all = "snake_case")]
+pub enum WorkPlace {
+    /// A worktree of Remit's clone, on a branch of the chain's own.
+    Worktree(Worktree),
+    /// A folder on the machine, worked in place: no forge, no clone, no branch. `path` is absolute; `opened` is the
+    /// checkpoint taken when the chain opened it, the folder as the chain found it.
+    Folder { path: String, opened: String },
+}
+
+crate::json_tagged!(WorkPlace, "kind");
+
+/// A chain's worktree of one repository, on a branch only that chain uses.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Worktree {
     /// Its path on its forge: GitLab's group/project, GitHub's owner/name.
     pub project: String,
     /// The forge's host.
@@ -174,9 +229,6 @@ pub struct RepoWork {
     pub branch: String,
     /// The branch its changes land on.
     pub base: String,
-    /// The submit in progress: one at a time per repository.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub submit: Option<Submit>,
 }
 
 /// A submit of a repository's work in progress (`land`): its own checks run on the worktree's head, minutes long, and

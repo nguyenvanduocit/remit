@@ -37,11 +37,13 @@ fn place(l: &Landing) -> Option<(Place, Time)> {
 fn queues(landings: Vec<Landing>, since: Time) -> Vec<LandingQueue> {
     let mut by_base: BTreeMap<String, Vec<(Place, Time, Landing)>> = BTreeMap::new();
     for l in landings {
-        let Some((at, when)) = place(&l) else { continue };
+        let Some((at, when)) = place(&l).filter(|_| l.queue.is_some()) else {
+            continue; // a version of a folder worked in place waits in no queue
+        };
         if at == Place::Ended && when < since {
             continue;
         }
-        by_base.entry(l.base.clone()).or_default().push((at, when, l));
+        by_base.entry(l.base().to_owned()).or_default().push((at, when, l));
     }
     by_base
         .into_iter()

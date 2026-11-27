@@ -47,8 +47,6 @@ pub enum Error {
     /// work is cut, not failed, and its conversation resumes at the session's next start.
     #[error("the AI runtime that held the session restarted: the session is gone, and resumes at its next start")]
     HostRestarted,
-    #[error("the launcher has no path to hide from sessions: refusing to start one that could read Remit's secrets")]
-    NoHide,
     #[error(
         "the launcher names no config dir for the plugin account {0}: refusing to start its session beside the \
          machine's login"

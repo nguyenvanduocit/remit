@@ -15,6 +15,7 @@ mod memory_tests;
 mod page_fault_tests;
 mod permission_tests;
 mod screen_tests;
+mod shipping_folder;
 mod shipping_land;
 mod shipping_release;
 mod shipping_round;

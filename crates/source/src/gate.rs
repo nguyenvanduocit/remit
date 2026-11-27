@@ -37,7 +37,7 @@ pub enum Form {
     Tool,
     /// T1: a program behind an injecting proxy; the program holds no credential.
     Proxy,
-    /// T2: a program in a jail whose environment holds the credential.
+    /// T2: a program whose environment holds the credential.
     Env,
 }
 

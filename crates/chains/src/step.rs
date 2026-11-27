@@ -287,11 +287,12 @@ pub struct UnarchiveCmd {
     pub by: Actor,
 }
 
-/// The edit a `WorkCmd` makes on the latest copy of a repository's record, or its refusal.
-pub type RepoEdit = Arc<dyn Fn(&mut RepoWork) -> Result<(), String> + Send + Sync>;
+/// The edit a `WorkCmd` makes on the latest copy of a repository's record (none when the chain has none yet): the record
+/// it becomes, or its refusal.
+pub type RepoEdit = Arc<dyn Fn(Option<RepoWork>) -> Result<RepoWork, String> + Send + Sync>;
 
-/// Changes what the chain records of its work on one repository: `edit` makes the change on the latest copy, a new record
-/// when there is none yet, or refuses it. `tell`, set when a submit ends, is how it went, for the Chair.
+/// Changes what the chain records of its work on one repository: `edit` makes the change on the latest copy, or refuses
+/// it. `tell`, set when a submit ends, is how it went, for the Chair.
 #[derive(Clone)]
 pub struct WorkCmd {
     pub repo: String,
@@ -302,10 +303,12 @@ pub struct WorkCmd {
 /// The edit that makes the record rw: for the one writer of a record at that moment (open_repo, or the submit running on
 /// it).
 pub fn replace_with(rw: RepoWork) -> RepoEdit {
-    Arc::new(move |x: &mut RepoWork| {
-        *x = rw.clone();
-        Ok(())
-    })
+    Arc::new(move |_| Ok(rw.clone()))
+}
+
+/// The edit that leaves the record as it stands, for a write that only tells the Chair: refused when the chain has none.
+pub fn keep_record() -> RepoEdit {
+    Arc::new(|was| was.ok_or_else(|| "the chain has no such repository open".to_owned()))
 }
 
 /// Records that the change of a chain is live, with who said so and a note (live.rs): `already`, observed under the
@@ -725,11 +728,7 @@ fn step_to(t: &mut Transition, c: &Chain, w: &WakeSubs, cmd: &ChainCmd, now: Tim
         }
         ChainCmd::Work(work) => {
             let at = c.repos.iter().position(|rw| rw.repo == work.repo);
-            let mut rw = at.and_then(|i| c.repos.get(i)).cloned().unwrap_or_else(|| RepoWork {
-                repo: work.repo.clone(),
-                ..RepoWork::default()
-            });
-            (work.edit)(&mut rw).map_err(Halt::Refused)?;
+            let rw = (work.edit)(at.and_then(|i| c.repos.get(i)).cloned()).map_err(Halt::Refused)?;
             if work.tell.is_empty() && at.and_then(|i| c.repos.get(i)) == Some(&rw) {
                 return Err(Halt::Unchanged); // the record stands as the edit leaves it
             }

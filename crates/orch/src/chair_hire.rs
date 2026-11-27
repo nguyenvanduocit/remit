@@ -335,7 +335,7 @@ impl Orchestrator {
                 .await?
                 .repos
                 .iter()
-                .find(|rw| !i.cwd.is_empty() && rw.path == i.cwd)
+                .find(|rw| !i.cwd.is_empty() && rw.dir() == i.cwd)
                 .map(|rw| rw.repo.clone());
             h.effort = tightened(&h.effort, raised_by(&landings, repo.as_deref()));
         }

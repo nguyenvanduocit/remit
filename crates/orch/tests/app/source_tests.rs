@@ -45,7 +45,7 @@ async fn source_rig() -> SourceRig {
     source_rig_with(Arc::new(Recording::default())).await
 }
 
-/// Keeps the jobs it is given and answers each with a harmless output: what reaches the jail.
+/// Keeps the jobs it is given and answers each with a harmless output: what reaches the runner.
 #[derive(Default)]
 struct Recording(std::sync::Mutex<Vec<source::Job>>);
 

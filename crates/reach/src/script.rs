@@ -1,10 +1,9 @@
 //! The script tool's executor (ADR-0018, form T1): the source crate decides what a script may say (the rules of its
-//! injection, carried in `Job::inject`) and builds the job; this runs it in a jail whose only way out is the injecting proxy of
-//! crates/egress, made for the call and closed when it ends.
+//! injection, carried in `Job::inject`) and builds the job; this runs it with its HTTP clients sent to the injecting proxy
+//! of crates/egress, made for the call and closed when it ends.
 //!
 //! The credential is in the proxy, which is in this process, and nowhere the script can look: the job's environment holds
-//! none (the source crate builds it with PATH and HOME alone), the jail's files are the scratch directory and the system's
-//! read-only paths, and the one file the runner adds to the scratch directory is the certificate of the proxy's authority,
+//! none (the source crate builds it with PATH and HOME alone), and the one file the runner adds to its scratch directory is the certificate of the proxy's authority,
 //! which has no key. What the runner adds to the environment is the way to the proxy and the authority to trust, for the
 //! clients that read them (python's urllib and requests, curl, node), and the connection's address, which is public:
 //! list_sources shows it.
@@ -12,16 +11,17 @@
 use std::path::Path;
 
 use egress::{InjectConfig, Injector, Upstream};
+use procgroup::Program;
 use source::{BoxError, Job, Output, PROGRAM_PATH};
 
-use crate::program::{GATE_MAX_TUNNELS, JailRunner, ProxyEnd, run_behind, under_system_paths, without};
+use crate::program::{GATE_MAX_TUNNELS, ProgramRunner, ProxyEnd, limits_of, run_behind, without};
 
 const SCRIPT_CA_FILE: &str = "ca.pem";
 /// Bytes of bodies one run carries, both directions together.
 const SCRIPT_MAX_BYTES: u64 = 64 << 20;
 
 /// The variables through which a client is told which authority to trust, all pointing at the one file; the runner owns them
-/// as the jail owns the proxy variables. NODE_USE_ENV_PROXY makes node's own clients read HTTPS_PROXY.
+/// as `procgroup::Program` owns the proxy variables. NODE_USE_ENV_PROXY makes node's own clients read HTTPS_PROXY.
 const AUTHORITY_VARS: [&str; 4] = [
     "SSL_CERT_FILE",
     "REQUESTS_CA_BUNDLE",
@@ -29,16 +29,15 @@ const AUTHORITY_VARS: [&str; 4] = [
     "NODE_EXTRA_CA_CERTS",
 ];
 
-impl JailRunner {
-    /// Runs spec with the injecting proxy for j.inject. The jail shows no certificate authorities of the host: the script
-    /// trusts the proxy's alone, which is all it ever talks to.
-    pub(crate) async fn run_through_injector(&self, j: &Job, spec: jail::Spec) -> Result<Output, BoxError> {
+impl ProgramRunner {
+    /// Runs program with the injecting proxy for j.inject. The variables clients read name the proxy's authority alone,
+    /// which is all the script is meant to talk to.
+    pub(crate) async fn run_through_injector(&self, j: &Job, program: Program) -> Result<Output, BoxError> {
         let Some(inject) = &j.inject else {
             return Err("the job names no connection to reach".into());
         };
-        run_behind(spec, |socket, mut spec| async move {
+        run_behind(program, limits_of(j), |mut program| async move {
             let proxy = Injector::new(
-                &socket,
                 InjectConfig {
                     upstreams: vec![Upstream {
                         base: inject.base.clone(),
@@ -66,9 +65,9 @@ impl JailRunner {
                 proxy.close().await; // the write error is the one worth returning
                 return Err(e.into());
             }
-            spec.env = with_injection(&j.env, &authority.to_string_lossy(), &inject.base);
+            program.env = with_injection(&program.env, &authority.to_string_lossy(), &inject.base);
             let end: Box<dyn ProxyEnd> = Box::new(proxy);
-            Ok((end, spec))
+            Ok((end, program))
         })
         .await
     }
@@ -85,7 +84,7 @@ fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
-/// env with the authority file and the connection's address, and none of the job's own of those names; the jail adds the
+/// env with the authority file and the connection's address, and none of the job's own of those names; the runner adds the
 /// proxy settings.
 fn with_injection(env: &[String], authority: &str, base: &str) -> Vec<String> {
     let mut names: Vec<&str> = AUTHORITY_VARS.to_vec();
@@ -97,14 +96,10 @@ fn with_injection(env: &[String], authority: &str, base: &str) -> Vec<String> {
     out
 }
 
-/// Whether a jail shows the program: it is on the PATH a script runs with, under a path the jail mounts, and runnable. The
-/// jail shows the system's paths and nothing of the user's, so a node under a home directory is not there.
-pub fn jail_has(binary: &str) -> bool {
+/// Whether the program is on the PATH a script runs with, and runnable.
+pub fn on_program_path(binary: &str) -> bool {
     std::env::split_paths(PROGRAM_PATH).any(|dir| {
         let path = dir.join(binary);
-        if !under_system_paths(&path) {
-            return false;
-        }
         std::fs::metadata(&path).is_ok_and(|m| m.is_file() && runnable(&m))
     })
 }

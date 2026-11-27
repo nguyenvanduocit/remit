@@ -657,7 +657,7 @@ fn mcp_head(by: &str, ext: &Extension, c: &Configured) -> String {
     };
     let reach = match &c.reach {
         ServerReach::Stdio { command, args, .. } => format!(
-            "Remit runs {} in a jail, with the variables below in its environment and nothing else of this server's, reaching only the addresses among them",
+            "Remit runs {} with the variables below in its environment and nothing else of this server's, its HTTP clients sent through a gate that reaches only the addresses among them",
             code_span(format!("{command} {}", args.join(" ")).trim())
         ),
         ServerReach::Http { url, .. } => format!(

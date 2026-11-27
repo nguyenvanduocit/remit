@@ -1,6 +1,6 @@
 //! Command remit serves the Remit console: the orchestrator, the link every channel and the AI runtime come in on, the
 //! agents' and clients' MCP endpoints, the event signals' door and the built web app, from one process. The same binary is
-//! the AI runtime (`remit runtime`), the jail's helper, `remit emit`, `remit export`, `remit update` (puts a release
+//! the AI runtime (`remit runtime`), `remit emit`, `remit export`, `remit update` (puts a release
 //! live) and `remit doctor` (checks a running server).
 
 mod agent_home;
@@ -36,9 +36,6 @@ use std::process::ExitCode;
 use tokio_util::sync::CancellationToken;
 
 fn main() -> ExitCode {
-    // First: a jailed program, and on Linux an agent's session, starts through this binary again, and this is where that
-    // run is the jail's helper.
-    jail::init();
     // Every HTTPS client and server of this binary (emit, update, doctor, the server's own) uses one crypto, ring.
     rustls::crypto::ring::default_provider().install_default().ok();
     // Read before any thread starts, the only time it can be.
@@ -94,9 +91,8 @@ fn server(args: &[String], home: &std::path::Path, offset: time::UtcOffset) -> R
             return Err(why);
         }
     };
-    let exe =
-        std::env::current_exe().map_err(|e| format!("the path of this binary, which sessions cannot change: {e}"))?;
-    let f = flags::Flags::of(&parsed).with_paths(&exe, home, &std::env::var("PM2_HOME").unwrap_or_default())?;
+    let exe = std::env::current_exe().map_err(|e| format!("the path of this binary: {e}"))?;
+    let f = flags::Flags::of(&parsed).with_paths(&exe)?;
     let datadog = datadog_of(&f);
     let (issues, issued) = errors::layer();
     logging("core", Some(&datadog), Some(issues));

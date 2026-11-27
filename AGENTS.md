@@ -201,7 +201,7 @@ A claim without evidence is a hypothesis: call it by its name.
   build*; API: call it), not only through unit tests. No output yet → write the true state (*"fixed `x.rs:12`, tests
   not run yet"*). A reproducible test fails BEFORE the fix and passes AFTER.
 - **Few tests, the ones that matter.** The compiler, the types and the lints carry correctness; tests are kept for what
-  they cannot see: the rails (authentication, pause and stop, credentials, the jail, the gate), stored data and the
+  they cannot see: the rails (authentication, pause and stop, credentials, the gate), stored data and the
   contract read across versions, and a chain's main path. Nothing else gets a test. `make test` runs under one minute:
   a test that would push it past is not added.
 - **Test behaviour, not implementation.** A test drives the code the way its real caller does and asserts what that caller

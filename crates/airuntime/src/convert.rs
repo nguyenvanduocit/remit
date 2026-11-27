@@ -60,7 +60,6 @@ pub(crate) fn agent_spec(s: runtime::SessionSpec) -> Result<Spec, String> {
         ask_tools: s.ask_tools,
         tools: s.tools,
         skills: s.skills,
-        read_only: s.read_only,
         plugins: s.plugins,
         system_append: s.system_append,
         resume: s.resume,

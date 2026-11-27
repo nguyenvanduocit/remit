@@ -212,10 +212,10 @@ async fn orchestrator(
         source::Options::default()
             .with_policy(ports.policy())
             .with_recorder(ports.recorder())
-            .with_runner(Arc::new(orch::JailRunner::new()))
+            .with_runner(Arc::new(orch::ProgramRunner::new()))
             .with_plugins(ports.plugins())
             .with_pins(ports.pins())
-            .with_script_interpreters(orch::jail_has),
+            .with_script_interpreters(orch::on_program_path),
     );
     // The channels' notifier: the web app's broadcast, which reaches the owner's and the mentors' sessions.
     let notify: Arc<dyn orch::Notifier> = Arc::<rpc::Broadcast>::clone(broadcast);

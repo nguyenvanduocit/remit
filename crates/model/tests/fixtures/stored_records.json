@@ -3,9 +3,7 @@
     "id": "ln_1",
     "chainId": "c_1",
     "repo": "app",
-    "host": "github.com",
-    "project": "acme/app",
-    "base": "main",
+    "queue": { "host": "github.com", "project": "acme/app", "base": "main" },
     "version": {
       "number": 2,
       "from": "abc",
@@ -86,10 +84,13 @@
     "repos": [
       {
         "repo": "app",
-        "project": "acme/app",
-        "path": "/work/c_1/app",
-        "branch": "remit/c_1",
-        "base": "main",
+        "place": {
+          "kind": "worktree",
+          "project": "acme/app",
+          "path": "/work/c_1/app",
+          "branch": "remit/c_1",
+          "base": "main"
+        },
         "submit": {
           "title": "fix(login): sign in again",
           "priority": "high",

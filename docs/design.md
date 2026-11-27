@@ -44,12 +44,14 @@ and the README of each crate below it.
   see what every agent is doing and why it exists; chat with any agent; full metadata of every Claude Code
   session kept in a database.
 - Non-goals (this version): users and roles (one owner, who comes in with the owner key or, when the server is set up
-  for it, with Google, ADR-0105), putting a change on a base by anything but Remit's merge queue (ADR-0114), serving
+  for it, with Google, ADR-0105), putting a change of a forge's repository on its base by anything but Remit's merge queue (ADR-0114), serving
   outside customers (distribution waits, `docs/remit-design.md`). The one forge write is the queue's push of a checked batch
   to a base branch, never forced; a chain's branch (`feature/mc-*`) stays in its worktree.
-- Git is the base of all work: a cell needs a remote on a supported forge, whatever the work is, and the result of every kind of
-  work is files in a repository landed on its base. Work with no software in it becomes files too (plans, content, configuration,
-  decision records); its gates' verdicts are its approval, and the owner reads it after it lands.
+- The result of every kind of work is files, in one of two places (ADR-0137). A repository of a forge is worked in a clone's
+  worktree and landed on its base by Remit's merge queue. A folder on the owner's machine, a Git repository or not, is
+  worked in place: the agents change the folder itself, Remit keeps checkpoints of it outside it, and a version is landed
+  once its gates approve it. Work with no software in it becomes files too (plans, content, configuration, decision
+  records); its gates' verdicts are its approval, and the owner reads it after it lands.
 - Anti-goals (failure even if it works): noise (chains that produce nothing worth reading),
   having to babysit, an agent doing something the UI does not show.
 
@@ -188,7 +190,7 @@ and the README of each crate below it.
   the work's other authors kept as `Co-authored-by:` trailers.
 - The server logs JSON lines to stderr; a record caused by a chain names it (`chain`), one caused by an event or the
   Assistant names its home (`home`), so one chain's log is one filter. The agents' stderr goes to `agents.log` in the data
-  directory (owner-only, and hidden from every agent session along with `remit.log` of the supervisor), moved to `agents.log.1` once it would pass 64 MiB, so the two hold at most 128 MiB; a write it
+  directory (owner-only), moved to `agents.log.1` once it would pass 64 MiB, so the two hold at most 128 MiB; a write it
   cannot make is said once in the server's log and never stops an agent.
 - When nothing has run for `-idle-alert` (default 2 hours; 0: never) while work waits (queued chains, approved changes
   waiting to land, items in his inbox), the owner gets one inbox item that says what waits and what holds it (no provider, the merge queue's limit). It is not repeated while it is open, nor after he dismisses it until work moves again;
@@ -198,7 +200,7 @@ and the README of each crate below it.
 
 | Entity | Meaning |
 |---|---|
-| Chain | One case: goal, origin (`owner`, `proposed`: queued by another chain with `propose_chain`, `routine`: started by Remit from one of the owner's routines, which it names; `event`: started by a subscription for an event, whose address (`event:<signal>#<rev>`) it names; `client`: started by an outside agent holding a client key, which it names; `verification`: opened by a judge to check a result, see Employees), the key result it serves (`serves`: an objective and one of its key results, see Objectives) and through it its project (see Projects), the round of competing attempts it is an attempt of (`attempt`, see Round; none for a chain that competes with none), its kind (`model::ChainKind`, ADR-0113: `work`, `chore`, `objective`, `author`, `release`, `coach`, `analyst`, `librarian` or `trial`, set once when it is queued and changed by no tool; its gates and whether the owner waits on it are the kind's), the capabilities it holds (its kind's when it was queued, then what its Chair gave or the Assistant decided), status (`queued`, `running`, `paused`, `waiting`, `done`), archived or not, Chair card id, repos (each with its worktree, branch and the base it lands on, and the land in progress), finishing (the Chair's summary while the goal judge checks it: the judge, when its time began, and its verdict once given), and once done why its last finish had no ruling of the goal judge (`unjudged`, empty when it had one, ADR-0067) |
+| Chain | One case: goal, origin (`owner`, `proposed`: queued by another chain with `propose_chain`, `routine`: started by Remit from one of the owner's routines, which it names; `event`: started by a subscription for an event, whose address (`event:<signal>#<rev>`) it names; `client`: started by an outside agent holding a client key, which it names; `verification`: opened by a judge to check a result, see Employees), the key result it serves (`serves`: an objective and one of its key results, see Objectives) and through it its project (see Projects), the round of competing attempts it is an attempt of (`attempt`, see Round; none for a chain that competes with none), its kind (`model::ChainKind`, ADR-0113: `work`, `chore`, `objective`, `author`, `release`, `coach`, `analyst`, `librarian` or `trial`, set once when it is queued and changed by no tool; its gates and whether the owner waits on it are the kind's), the capabilities it holds (its kind's when it was queued, then what its Chair gave or the Assistant decided), status (`queued`, `running`, `paused`, `waiting`, `done`), archived or not, Chair card id, repos (`RepoWork`: each the repository's catalog id, where the chain's work on it lives (`place`, ADR-0137: a worktree of a clone with its forge host and path, its branch and the base it lands on, or a folder worked in place with its absolute path and the checkpoint taken when it was opened), and the land in progress), finishing (the Chair's summary while the goal judge checks it: the judge, when its time began, and its verdict once given), and once done why its last finish had no ruling of the goal judge (`unjudged`, empty when it had one, ADR-0067) |
 | Routine | The owner's routine, a subscription of Remit that keeps a schedule (ADR-0014, ADR-0064; `model::Subscription` with a `model::Schedule`) whose action starts a chain, one run at a time (`buffer_one`): words he gave once and the time or rhythm at which Remit starts a chain from them: a title, the goal each chain gets (his words, naming a playbook when one fits), the kind of chain it starts (`work`, `chore` or `objective`), when (a cron expression in the server's time zone, or one time for a run that happens once), when it next starts a chain, paused or not, and who made or last changed it. Made, changed and deleted by telling the Assistant (see Routines) |
 | Event signal | What one outside system, script or source tells Remit, the signal `event:<name>` (ADR-0024; `model::EventSignal`): a name (the last part of its door's address), what it is for, paused or not (no writer is let in), whether it ships with Remit (`builtin`, `edited` once he changed it), and who made or last changed it. Its door's key is sealed in a column of its own and belongs to no record (see Event signals). Its sensors are records of their own (Sensor). Made, changed and deleted by telling the Assistant; the builtin ones (`gitlab`, `github`) keep his changes and are never deleted |
 | Sensor | What senses and writes readings of a signal (ADR-0047, ADR-0049; `model::Sensor`, table `sensors`): a `kind` (`poll`, `script`, or `plugin:<id>.<name>`, a kind an enabled plugin adds, with its `settings`), a name, what it is for, the signal it writes, a source and a connection of it, and either a `query` in that source's words (a poll, read from a cursor) or a script (`language`, `code`) for the `script` source, how often (at least a minute), the cursor of its last read, paused or not, and who made or last changed it. A **standing** sensor has no chain and writes an event signal `event:<name>` (its `poll`); a **chain** sensor belongs to one chain and writes `chain:<id>.sensor.<name>` (its script). Time is sensed by no sensor: a subscription keeps its own schedule (see *The signal pipeline*). `Sensor.Check` is the one place that decides which pairs are valid. A sensor does nothing about what it reads: a subscription to its signal acts. Standing sensors are made, changed, paused and deleted by telling the Assistant; a chain's by its Chair; a chain's end with the chain, and an event signal's with the signal |
@@ -224,7 +226,7 @@ and the README of each crate below it.
 | Retrospective | What a finished chain should teach, written by the coach (ADR-0082, `write_retrospective`): the issues with their impact in words, each memory its agents recalled marked helped or misled with why, an improved brief the owner may start a chain from, and the change item of the lesson the coach proposed, if one waits; one per finish, carried in `ChainView` |
 | Request | An action a channel asked for, kept with its first answer for a week, so the same action asked again is done once (see Channels) |
 | Approval | A judge's verdict (`Verdict`: `approve` or `request_changes`), signed as its role (`VerdictRole`: `reviewer`, `qc` or `security`, the gate it closes, `judge` for the goal judge): a reviewer's or QC's on one version of a repository's change (its patch id), or the goal judge's on the chain's result, with a finding per key result of the goal (the key result it rolls up to, the item checked, `met`, `not_met` or `unverified`, its evidence, and when it objects a closed reason code and the platform records it cites). A record of its own, kept for every round of review; channels see it through the chain's verification (see How results are checked) |
-| Landing | One version of a chain's change on one repository on its way onto the base, and what became of it (`model::Landing`, ADR-0114, table `landings`): its chain, its repository, forge host and path and the base it lands on (together its queue, `QueueKey`), its version (1 for the chain's first on that repository), the worktree commit it is (`from`), where it left the base (`forked`), the stable patch id its verdicts are of (`change`), the gates it needs and the verdicts that approved it, the employees whose accepted work makes it up (`by`), the commit's title and description, the Chair's priority and why, the paths it touches, the judgments a decider made of its change and the effort they raised its change reviewers to (`judged`, `effort`), its stage plan when it is a stage of a canary, the landing it takes back when it is a revert (`reverts`), a state (`judging`, `contending` for an attempt's version waiting on its round's pick, `ready`, `combining`, `checking`, `landed`, `returned`, `reverted`), the batch it was combined in, the base commit that batch was combined on (`onto`), the commit it became and the push that carried it, the forge's checks on that push and on the base before it, why it went back to its Chair (`returned`: `conflict`, `checks`, `empty`, `replaced`, `refused`, `withdrawn`, `not_picked`, with the output that showed it) and what took it back (`reverted`: cause `pipeline`, `guardrail`, `overturn` or `conflict`, the revert's landing, who and why), and when it became ready and landed, the release that carried it (`release`, ADR-0116), and, for one carried over from a merge request by migration 0119, that MR's URL (`reference`). A chain lands without bound, so it is an entity of its own, carried in `ChainView.landings` and pushed by `landing_updated`; it is kept after its chain is deleted |
+| Landing | One version of a chain's change on one repository on its way onto the base, and what became of it (`model::Landing`, ADR-0114, table `landings`): its chain, its repository, the queue it waits in (`queue`: its forge host and path and the base it lands on, `QueueKey`; none for a version of a folder worked in place, which has no queue, ADR-0137), its version (1 for the chain's first on that repository), the worktree commit (a folder's checkpoint) it is (`from`), where it left the base (`forked`: for a folder, the checkpoint of the last version approved, or of the folder as the chain opened it), the stable patch id its verdicts are of (`change`), the gates it needs and the verdicts that approved it, the employees whose accepted work makes it up (`by`), the commit's title and description, the Chair's priority and why, the paths it touches, the judgments a decider made of its change and the effort they raised its change reviewers to (`judged`, `effort`), its stage plan when it is a stage of a canary, the landing it takes back when it is a revert (`reverts`), a state (`judging`, `contending` for an attempt's version waiting on its round's pick, `ready`, `combining`, `checking`, `landed`, `returned`, `reverted`), the batch it was combined in, the base commit that batch was combined on (`onto`), the commit it became and the push that carried it, the forge's checks on that push and on the base before it, why it went back to its Chair (`returned`: `conflict`, `checks`, `empty`, `replaced`, `refused`, `withdrawn`, `not_picked`, with the output that showed it) and what took it back (`reverted`: cause `pipeline`, `guardrail`, `overturn` or `conflict`, the revert's landing, who and why), and when it became ready and landed, the release that carried it (`release`, ADR-0116), and, for one carried over from a merge request by migration 0119, that MR's URL (`reference`). A chain lands without bound, so it is an entity of its own, carried in `ChainView.landings` and pushed by `landing_updated`; it is kept after its chain is deleted |
 | Round | One round of competing attempts at a key result whose check is a command (`model::Round`, ADR-0115, table `rounds`): the key result, its number (1 for the key result's first), and its state: `open` while its attempts (the chains whose `attempt` it is) work and another may join, `judging` with its judge's card, `picked` with the judge's card, the attempt (chain) picked, the judge's reasons and the owner's overturn when he made one (its decision and his word), or `ended` without a pick, saying why. A key result runs rounds without bound, so a round is an entity of its own, its id derived from the key result and its number |
 | Release | One run of a repository's release procedure on a landed commit (`model::Release`, ADR-0116, table `releases`): its repository, commit and the commit released before, its state (`releasing`, `baking`, `live`, `unchanged`, `taken_back` with who and why), the version and links it reported, its steps and way-back steps with each one's exit and output, the guards it bakes under, and its bake. Its landings name it (`Landing.release`). Written by the release runner (`crates/shipping/src/release_run.rs`) alone, through a change's `Records::releases`. A repository's release pause (`model::ReleasePause`, table `release_pauses`) is who pulled it and why, and once lifted who lifted it and why. The repository's newest (`RELEASES_SHOWN`) with their landings, and its pause, are its Releases view in `RepoView` (`repo_get`, pushed whole as `repo_updated`) |
 | Draft | An unsent message to a chain agent or the Assistant. Remit saves its words and attachment references as the owner writes. Each upload's bytes are stored once in the draft's home. The sent message keeps those references and the runtime supplies inline images and read-only files to the agent (ADR-0130). Sending or deleting the draft ends it |
@@ -414,19 +416,32 @@ and the README of each crate below it.
    applies `label`, `phase` (the step's, and named in the card's why), `schema`, `agentType` and `model`; `effort` is
    accepted and said on the hire's why and the step, not applied (per-session effort is ADR-0070, not built); `isolation` is
    refused, since a chain's agents share its one worktree; `workflow()` fails: Remit keeps no saved scripts.
-5. `open_repo` names a repository by its remote (ADR-0038), clones it into `<data>/repos/<host>/<project>` the first time and creates a worktree from that clone on branch `feature/mc-<chain>-<slug>`. Every session commits there.
+5. `open_repo` opens a repository in one of two places. An absolute path to a directory (or `~/path`) opens the folder in
+   place (ADR-0137, `crates/shipping/src/folder.rs`): no remote, forge account, clone, branch or worktree, so the owner
+   sees every edit as it is written and a folder that is not a Git repository works too. Remit keeps a shadow Git directory
+   for the folder at `<data>/folders/<name>-<digest of its path>.git` (`git --git-dir=<it> --work-tree=<folder>`, so the
+   folder's own `.git` is never read or written; its `.gitignore` files hold) and takes a checkpoint of the folder when it
+   is opened and at each `land` (`shadow.rs`; what to checkpoint and what a restore writes or refuses are the pure rules
+   of `checkpoint.rs`). A folder is held by one chain at a time: `open_repo` refuses one another chain that is not done
+   holds, naming the chain, and the machine's root and the owner's home. The user may keep editing it; the edits fall into
+   the next checkpoint's diff. `restore_checkpoint` (the Chair's tool, and the Assistant's for the owner) writes the folder
+   back to a checkpoint and takes a checkpoint of the result; it refuses, naming the file and writing nothing, when a file
+   it would overwrite changed since the newest checkpoint, and lists the checkpoints when none is named.
+   Any other name is a repository of a forge, named by its remote (ADR-0038): Remit clones it into
+   `<data>/repos/<host>/<project>` the first time and creates a worktree from that clone on branch
+   `feature/mc-<chain>-<slug>`. Every session commits there.
    A short name (`api`) is looked for first among the repositories of the chain's project, so it opens that product's
    `api`, cloned on first use; then among the clones Remit holds. A chain may open any repository (ADR-0108).
    A directory already at that path is taken over only when it is the chain's own worktree (on its branch, which carries
    the chain id); anything else is another chain's or the owner's, and `open_repo` refuses it.
-   The Chair hires each agent that changes, reviews or verifies code with the worktree path as its cwd; an agent that
+   The Chair hires each agent that changes, reviews or verifies code with the worktree path (or the folder) as its cwd; an agent that
    only investigates data keeps the chain's directory. `land` (`crates/shipping/src/land.rs`, ADR-0114) puts a version of
    the chain's change on one repository on its way onto the base, in the background, one at a time per repository; the
    Chair hears the result as a message starting `[land result · <repo>]`. It commits what agents left, as the account
    the forge pushes as; refuses a worktree that holds nothing beyond the base, or that carries commits already on another
    branch of the repository (a release or hotfix); refuses forbidden paths (CI configuration, `.remit/checks/` and `.remit/rails`, secrets:
    `forbidden_path`; `.remit/release/` is written by chains, a rail by code); runs build, vet and tests of a Go module and then the checks the repository declares in
-   `.remit/checks` (each in a jail, ADR-0025); and records the version as a Landing: the worktree commit, where it left the
+   `.remit/checks` (each a child program with a deadline, ADR-0025); and records the version as a Landing: the worktree commit, where it left the
    base the forge names, the stable patch id of that change, the gates it needs (`required_gates`), the employees whose work
    the Chair accepted with their cwd in the worktree (`by`), the Chair's title and description (the landed commit's
    message) and the paths it touches. Nothing is pushed: it waits, `judging`, until every gate it needs approved its patch
@@ -435,6 +450,14 @@ and the README of each crate below it.
    (`RepoWork.submit`) before its checks start, so a crash or server restart runs them again and the Chair is told once;
    pausing, finishing or deleting the chain stops it (see 3). A chain a client key started lands nothing (its work stays
    in its worktree), nor does a trial's.
+   `land` on a folder worked in place (ADR-0137) takes a checkpoint and records the version as a Landing whose `forked` is the
+   checkpoint of the last version a gate approved (or of the folder as it was opened) and whose `change` is the patch id
+   of the diff between the two; it runs no `.remit/checks`, refuses the same forbidden paths and takes no canary stage. The
+   same gates judge it, reading the diff between the checkpoints (the Chair is told the `git --git-dir=<shadow> diff`
+   command), and a verdict is refused while the folder holds an edit no checkpoint holds. Its `queue` is none, so it
+   belongs to no merge queue, batch, push or release: once the last gate approves it is `landed`, its files being already in
+   the folder, and its checkpoint is the base of the next version. A refusal leaves it `judging` until the Chair fixes
+   the folder, or restores a checkpoint, and lands again, which replaces it.
    The Chair rates each change when it lands it: `priority` (high, medium or low, by what waits on it or what breaks
    if it is wrong) and `priority_why`, one line for the owner. `land` refuses a change without both before it does
    anything, each new version is rated again, and the rating rides with the landing into the decision that records it. It
@@ -454,15 +477,13 @@ and the README of each crate below it.
    meets the `PostToolUse` hook after it, and a subagent the `SubagentStart` hook as it starts (`agent::Handler::on_moment`,
    relayed from the runtime by `session_moment` once the core has every entry before it): the core answers with what the
    agent's memory holds about that moment (`chains::recall`), within 2.5 s, and the agent waits 3 s at most before it
-   goes on with nothing added. Settings change only between sessions (`ConfigChange` is refused, and
-   `.claude/settings*.json` of every worktree is read-only), and a worktree is Remit's to make (`EnterWorktree` and
+   goes on with nothing added. Settings change only between sessions (`ConfigChange` is refused), and a worktree is Remit's to make (`EnterWorktree` and
    `git worktree add` are denied; a tree at another commit is a `--shared` clone in the scratchpad). What Claude Code
    does to a session beside the agent's work, a retried request, a compaction, an instructions file read, a model it
    switched to, shows as a note in the agent's stream; a compaction that succeeded (a note of its own kind, apart from
-   one that failed) also lets the session be given again the memories its summary may have dropped. The rules are a tripwire, not a sandbox: a command that
-   reaches the same place another way is not caught. What a session cannot reach at all, Remit's own secrets, is
-   settled by its isolation (see Outside systems), and the gaps that remain are in the known gaps below. A request meets,
-   in this order:
+   one that failed) also lets the session be given again the memories its summary may have dropped. The rules are a tripwire, not a wall: a command that
+   reaches the same place another way is not caught, and nothing else stands between a session and the user's files,
+   Remit's own secrets included (ADR-0138; see Outside systems and the known gaps below). A request meets, in this order:
    1. The deny rules (pushing, adding or re-pointing a remote, `glab mr` and `gh pr` writes, a `glab api` or `gh api` call
       that names the endpoint or mutation that merges or approves, whatever its method and flags, a reviewer's or QC's file edits) are enforced by
       Claude Code in every mode, so no request for them exists and nobody can allow them. A request that does reach
@@ -585,7 +606,7 @@ and the README of each crate below it.
     run is made at `create_sensor`, so a script that fails, prints no JSON or is refused by the gate is the Chair's error while it can
     fix it, and nothing is stored. Then the Chair watches the key with `subscribe`, which takes no sensor. After that `Tick` starts
     each sensor with an open watch on its key in the background (`poll_sensors`, `sensor.rs`) every `every` (at least a minute): the
-    script runs as the chain's Chair behind the connection's proxy in the jail of the `script` tool (`source::Set::run_script`), so the
+    script runs as the chain's Chair behind the connection's proxy, as the `script` tool runs one (`source::Set::run_script`), so the
     chain's grants decide it, and it prints one JSON value, the state now. A value that differs from the newest is a reading
     caused by Remit (`sensor`), kept as a state's readings are (*Retention*, below), judged by the watch's condition. It runs only while a watch on its key is
     open and the chain not paused; three failed runs in a row hold the watch's line with the last error. Only sources that run
@@ -599,6 +620,10 @@ and the README of each crate below it.
     moves a rail; a `mark-live` subscription tells nobody.
 
     **Shipping** (ADR-0114). Remit lands every approved change itself; no agent merges and no capability is needed to land.
+    - **In place.** A version of a folder worked in place (ADR-0137) is a landing whose `queue` is none, so no queue runner,
+      batch, push, forge check, canary stage or release reads it (`Landing::queue` is the one place that says which a landing
+      is): `approve` moves it from `judging` to `landed` when its last gate approves, the Chair is told in the same write, and
+      `fact:chain.landed` is written as for any landing. It is taken back by `restore_checkpoint`, never by `revert_landing`.
     - **The merge queue.** A landing that turns `ready` enters the queue of its repository and base (`QueueKey`: the
       forge's host, the path there, the base), whose rule is pure (`crates/shipping/src/landing.rs`) and whose shell
       (`queue.rs`) is one runner per queue in the server's memory, so one writer moves a base. A pass runs when a landing
@@ -620,7 +645,7 @@ and the README of each crate below it.
       a week ago (`looked_for`, `LOOK_FOR`), its chain at work or finished, is looked for the same way: the landing sync runs its queue, which looks each time the base moved
       (and once after a start), so a change the owner merges outside the queue after it came back is found landed.
     - **The checks on the combined tree.** The checks `land` ran run again on the batch's top, in a detached worktree of
-      the clone (`<work root>/landing/…`) and in the jail; a batch of one landing that forked from where the base stands was
+      the clone (`<work root>/landing/…`); a batch of one landing that forked from where the base stands was
       checked as it is by `land` and is not checked again. A red batch of one goes back to its Chair (`checks`, with the
       output); a red batch of more goes back to the queue, so the halved batches find the landing that broke it alone.
     - **The push.** The batch is recorded `checking`, with the commits it makes and the push, before the push, so a restart
@@ -1031,8 +1056,7 @@ meaning and links, judged for relevance, given to each turn, and kept whole over
   that helped (`precision`), and how often a session searched out what it was not given; and 17 frozen questions written
   against the owner's memories (`recall_fixture.json`), judged against every active memory as a turn's message is. The
   coach reads it and tells the owner when it falls.
-- **The key.** OpenRouter's key is read from `-openrouter-key-file` (default `<data>/openrouter.key`) at each call and
-  hidden from every session (`protected_from_agents`); with none, memory is searched by words and links.
+- **The key.** OpenRouter's key is read from `-openrouter-key-file` (default `<data>/openrouter.key`) at each call; with none, memory is searched by words and links.
 - **The owner sees it** on the Crew page (`employee_memory`), an agent's drawer, the Assistant's included (`card_memory`,
   offered when `AgentStanding::remembers`) and a mentor's page (`mentor_memory`): each a `MemoryBook`, what the agent
   recalls now, what its holder once held (superseded or retracted, with why) and the teachings it learned from with the
@@ -1822,7 +1846,7 @@ its Chair gives it (`grant_capability`, one that does not write) or asks for and
 ## Outside systems
 
 An agent acts on an outside system only through Remit, and holds a grant, never a credential (ADR-0018). A credential
-exists only in the executor that carries a call out: the backend for a typed tool, the jail for a program. Four rules hold
+exists only in the executor that carries a call out: the backend for a typed tool, a program's own environment for a program. Four rules hold
 for every form of use and every source: the credential is sealed in its executor; a chain holds the least grant it needs;
 every call passes one gate; each call says how it is kept to its effect (`read`, `reversible`, `compensable` or `irreversible`), and no description claims more
 than that.
@@ -1845,7 +1869,7 @@ than that.
   policy (`GrantPolicy`, which asks the rule above; a call that names no chain is denied), runs the act under a deadline,
   removes secrets (`RedactText`), starts the answer with `connection: <source>/<name>`, cuts it, and tells the recorder
   (`CallAccount`: one source_calls row per call with chain, agent, source, connection, tool, effect, form, outcome and what the
-  input was without its secrets: a program's argv, a script's language, size and hash; the database is hidden from sessions). Who calls comes from the card (its `Caller`), never from the tool's input. A gate
+  input was without its secrets: a program's argv, a script's language, size and hash). Who calls comes from the card (its `Caller`), never from the tool's input. A gate
   with no policy lets through a read by a typed tool and nothing else.
 - **A typed tool** (`Form::Tool`) keeps the credential in the backend and its effect in its own code (`crates/source/src/sqlguard.rs`,
   `crates/source/src/mongoguard.rs`: statements that read).
@@ -1853,52 +1877,55 @@ than that.
   (CloudWatch, which runs `aws` for `logs describe-log-groups`, `filter-log-events`, `get-log-events`, `start-query`,
   `get-query-results` and `sts get-caller-identity`). The agent writes the arguments, an argv no shell reads. The source fixes
   the binary, the environment, the commands that may run, the flags and values refused (`ProgramSpec.Check`) and the
-  addresses the program may reach. The credential is in the program's environment, in a jail, and the program runs only on a
+  addresses the program may reach. The credential is in that program's environment alone, and the program runs only on a
   read grant the owner gave for programs (`request_grant` with form `env`) on a connection he did not mark protected
   (`decide_program`); the read a capability implies does not reach it. That the program only reads is the credential's own
-  rights, so the owner applies the grant only for a read-only credential, and every answer carries the line
-  `form: program (env in a jail; read-only is the credential's rights)`. A secret the program prints is removed from its
-  answer; one it encodes is not.
+  rights, so the owner applies the grant only for a read-only credential, and every answer carries a `form: program`
+  line that says so. A secret the program prints is removed from its answer; one it encodes is not, and a program can
+  send the credential anywhere it reaches the network directly (ADR-0138).
 - **A script** (`FormProxy`) is the one tool `script`, offered with the capability of any source that implements `Injected`
-  (Grafana, GitHub and Datadog): python3, sh or node code the agent writes, run in the jail with no credential at all. Its only way
-  out is a proxy of the call (`egress::Injector`) that ends the script's TLS for the connection's host with a certificate of a
+  (Grafana, GitHub and Datadog): python3, sh or node code the agent writes, run as a child program with no credential at all. Its
+  proxy variables point at a proxy of the call (`egress::Injector`, on a loopback port) that ends the script's TLS for the connection's host with a certificate of a
   throwaway authority, adds the connection's credential headers in place of any the script sent, and re-opens TLS to the
   upstream. The proxy keeps the script to the effect in code: GET, and POST only at the paths the source names as reads;
   no `..`, encoded slash or foreign Host; no redirect to another host; a cap on requests, body and answer; the credential
-  scrubbed from what comes back. It follows the rule of a typed tool's read (`decide_as`), because the script holds nothing and the
-  proxy confines it; every answer carries `ScriptEnforced`. A script can still read much of the API in bulk and send what it
-  reads to the upstream host only; an encoded copy is not masked.
-- **The jail** (`crates/jail`, `JailRunner` in `crates/reach/src/program.rs`), one API with an adapter per OS
-  (`docs/adr/0021-the-jail-has-an-adapter-per-os.md`). On Linux a program runs in new user, mount, network and pid namespaces with
-  no capability and `no_new_privs`; on macOS under a Seatbelt profile that denies everything but what it allows. It sees its
-  scratch directory (the one path it writes) and the system (`jail::system_paths`) read-only, and its environment is the one it was
-  given, with the proxy variables the jail sets. It has a deadline, a cap on its output and a CPU limit, and on Linux a memory
-  limit; no process count or disk is bounded. It has no network, except through a unix socket to an egress
-  gate (`crates/egress`) made for that call, which connects it only to the listed `host:port` pairs, refuses a name that
-  resolves to a loopback, private or link-local address, follows no redirect, caps tunnels in number, bytes and time, and
-  names what it refused in the answer. The gate cannot see what a program sends to an address it allows.
+  scrubbed from what comes back. It follows the rule of a typed tool's read (`decide_as`), because the script holds no credential and
+  only a call through the proxy carries one; every answer carries `ScriptEnforced`. A script can still read much of the API in
+  bulk and send what it reads anywhere, since nothing stops it reaching the network around its proxy; an encoded copy is not
+  masked.
+- **The runner** (`procgroup::Program`, `crates/procgroup/src/program.rs`, `docs/adr/0138-remit-runs-no-jail.md`). Every
+  child that is not a session starts through it: a source's program and script, a stdio MCP server, a repository's
+  `.remit/checks`, a command check of a key result and a release's steps. It takes an argv, a work directory, the whole
+  environment the child is given (`crates/childenv`, nothing inherited from the server) and, for a child that reaches a
+  connection, the address of its proxy, set as `HTTPS_PROXY` and `HTTP_PROXY` with `NO_PROXY` empty. `Program::run` runs
+  the child to its end in its own process group, under a deadline and a cap on the output kept, and kills the group on a
+  timeout or a drop; `Program::start` leaves a stdio server running. The child runs as the user, with the user's files,
+  toolchain and network; no CPU, memory, process count or disk is bounded. The runner is where isolation returns when
+  Remit serves someone other than the person whose machine it runs on (ADR-0138, *Revisit when*). A program's proxy is an
+  egress gate (`crates/egress`) made for that call on a loopback TCP port, which connects it only to the listed
+  `host:port` pairs, refuses a name that resolves to a loopback, private or link-local address, follows no redirect, caps
+  tunnels in number, bytes and time, and names what it refused in the answer. The gate is how a call is recorded and a
+  credential injected, not a wall: a program that ignores its proxy variables reaches the network directly, and the gate
+  cannot see what a program sends to an address it allows.
 - **A session** (`crates/agent`, `crates/claudecode`, `crates/airuntime`, `crates/remit/src/runtime.rs`). It runs in the AI
   runtime, the core's child, as the server's OS user with the same HOME (ADR-0058): `crates/remit/src/runtime.rs` builds the
   `ClaudeLauncher` the runtime starts every session with. A stop deletes the run's MCP token, cuts the turn and kills the session in the
   runtime; a runtime that does not end it within `kill_wait` is killed with every process under it and started again, and the
   sessions it held end as `agent::Error::HostRestarted`, which resumes their cards. Claude Code starts with an
   allowlisted environment (`crates/childenv`, `childenv::of`: where programs are, the proxy and certificate settings, the git identity, the Go
-  toolchain; nothing of the server's credentials), and inside `jail::hidden_with`: on Linux user and mount namespaces over the host's
-  files and network, on macOS a Seatbelt profile. The paths of `protected_from_agents` cannot be read by it nor by anything its shell
-  starts (on Linux they read as empty): the key file
-  and its backups, the database with its snapshots and copies, the source and Jira env files, the vault's `secret/`, the client-key
-  files, the process manager's config and its state directory. The directory of the server's binary, and the checkout around it
-  when that is the checkout's `bin/`, read as they are and cannot be changed. A launcher with no path to hide starts no session
-  and a host that cannot isolate it fails the start; there is no unisolated fallback. The server's own checks of an
-  agent's change (`repo_command`) take the same environment.
-- **A jailed child is told the work it runs for** (ADR-0119, `childenv::trace`, `telemetry::Child`): a repository's checks
+  toolchain; nothing of the server's credentials), as a plain child process in its own process group (`crates/claudecode`).
+  Nothing is hidden from it or made read-only to it: it reads and writes what the user can, the key file, the database and
+  the server's binary included (ADR-0138). The deny rules refuse a tool call that names Remit's own secret files
+  (`own_secret_files`, `crates/chains/src/policy.rs`), a tripwire a command that reaches them another way passes. A
+  read-ceiling employee's session loses its edit tools and Bash by deny rules (`crates/orch/src/access.rs`). Remit runs on
+  any host where `claude` runs. The server's own checks of an agent's change (`repo_command`) take the same environment.
+- **A child program is told the work it runs for** (ADR-0119, `childenv::trace`, `telemetry::Child`): a repository's checks
   (`repochecks.rs`), a release's steps (`release_run.rs`) and a source's programs and scripts, a sensor's included
-  (`JailRunner`), each run in a span of its own, `remit.child`, under the span of the work that started it, which records how
+  (`crates/reach/src/program.rs`), each run in a span of its own, `remit.child`, under the span of the work that started it, which records how
   it ended. A chain's checks run under `remit.checks` and a source call under `remit.source`, each naming its chain (Remit's
   own polls name none); a release's steps name their release, not a chain. The child gets `TRACEPARENT` (that span, while the
   server traces) and the work's correlation attributes, escaped, after the job's own `OTEL_RESOURCE_ATTRIBUTES`; its
-  service name stays the job's. Ids, never a credential, never the Datadog key, and no endpoint to export to, as the jail
-  leaves it no way to the `/otlp` door.
+  service name stays the job's. Ids, never a credential, never the Datadog key, and no endpoint to export to.
 
 ## Agents and the library
 
@@ -1990,9 +2017,9 @@ his words), and sees it on the Agents, Skills and Tools pages, under the Crew ta
   is damaged: it is cleared and asked again, once. A key file that is merely too open in mode is the operator's to fix and
   clears nothing. Values sealed before key ids were recorded have none: they open by trying the key file's key, and one
   it does not open is taken as another key's, so it is kept.
-  A session shares the server's OS user and starts with the key file, the database and its copies hidden and an allowlisted
-  environment (see Outside systems), so the sealing protects the database, its backups and every channel Remit writes
-  against a session too; the gaps that remain are in the known gaps below.
+  A session shares the server's OS user and can read the key file and the database (ADR-0138), so the sealing protects
+  the database, its backups and every channel Remit writes against whoever holds them without the key file, not against
+  a session; the ask and deny rules on the key file are a tripwire (see the known gaps below).
 - **The Assistant's manual** is a skill that ships with Remit, `builtin:app` (`crates/builtin/skills/app`): text in the binary,
   not a record of the library, so the owner neither edits nor deletes it and no agent can hold it. It is rendered at start into
   a plugin directory of its own and given to the Assistant's session alone. Its index says what each part of the app is and
@@ -2017,12 +2044,12 @@ his words), and sees it on the Agents, Skills and Tools pages, under the Crew ta
   `claude` is not on its PATH.
 - **Releases** (ADR-0116). What lands on a repository reaches its customer by the procedure the repository declares in
   `.remit/release/`, read at the commit released, run by Remit's code with no agent and no person asked.
-  - **The procedure.** Its executable files are the steps, run in name order, each in a jail of its own (`jail::Spec`,
+  - **The procedure.** Its executable files are the steps, run in name order, each a child program of its own (`procgroup::Program`,
     built in `crates/shipping/src/release_run.rs`) in a fresh checkout of the commit, stopping at the first that fails.
     A step's environment is `PATH`, `HOME` and `TMPDIR` (its scratch directory), `LANG`, `REMIT_RELEASE_REPOSITORY`
     (host/project), `REMIT_RELEASE_COMMIT`, `REMIT_RELEASE_PREVIOUS` (empty for the first), `REMIT_RELEASE_OUT` (the
     file it writes `{"released", "version", "links"}` to) and, for a way-back step, `REMIT_RELEASE_BREACHED`; no
-    credential. `connections` names one `<source>/<connection>` a line, the only places a step reaches: each through a
+    credential. `connections` names one `<source>/<connection>` a line, the only places a step reaches with a credential: each through a
     grant the repository holds (`HolderKind::Repository`, asked with `request_grant` naming the repository), behind
     one injecting proxy for the step (`crates/reach/src/release_step.rs`) that adds each connection's credential,
     admits writes only where `grant::decide` allows an `irreversible` effect, and scrubs every credential from the step's output. `guard`
@@ -2105,21 +2132,23 @@ generated and lock files left out, unless its message has a `Large-change:` line
   Code does not validate it. The Chair's brief says what it should be, the Chair sees every agent's cwd in
   `list_agents`, and the owner sees it in the card's details. If a wrong cwd ever costs more than the freedom is worth, the rail to add is a refusal in
   `Hire` of any cwd outside the chain's directory; it was left out on purpose.
-- Known gap: the ask rules and the policy are a tripwire. A session can still reach a secret in a way no rule lists (`grep -r`
-  over a directory holding a `.env`, a script it wrote) wherever isolation does not hide it. Remit's own secrets (the key
-  file and the database, which the rules name where `-secret-key-file` and `-data` put them, and the files where client-key holders keep theirs (`-client-key-files`), `own_secret_files`) are
-  hidden from every session (see Outside systems). Left open, each for its own unit (`docs/adr/0018-agents-act-on-connections-through-grants-and-one-gate.md`,
-  `docs/adr/0004-agents-run-as-the-servers-os-user.md`):
+- Known gap: the ask rules and the policy are a tripwire, and Remit runs no isolation behind them (ADR-0138): its users
+  are individuals running it on their own machine, and what an agent they started does to them is theirs to bear. A
+  session can reach a secret in a way no rule lists (`grep -r` over a directory holding a `.env`, a script it wrote).
+  Remit's own secrets (the key file and the database, which the rules name where `-secret-key-file` and `-data` put them,
+  and the files where client-key holders keep theirs (`-client-key-files`), `own_secret_files`) are refused only to a tool
+  call that names them. Isolation returns at the runner when Remit serves someone else (`docs/adr/0138-remit-runs-no-jail.md`,
+  `docs/adr/0018-agents-act-on-connections-through-grants-and-one-gate.md`, `docs/adr/0004-agents-run-as-the-servers-os-user.md`):
   - The GitLab and SSH credentials (`~/.ssh`, `~/.config/glab-cli`) are readable by a session and by a check of a change,
     because library skills have sessions run `glab api` and `git fetch` over ssh. They move behind the gate with a GitLab
     connection kind, which does not exist yet.
-  - A session has no pid namespace, so it can signal the server's process, and it shares the server's OS user, so it can
-    write what that user's cron and shell start outside the isolated paths (the process manager's start script, the
-    user's crontab, shell startup files). A list of paths cannot close that; a separate OS user, or a session whose whole
-    root is a jail's, does.
-  - A session keeps the host's network, which it needs to reach its model provider, so what it can read it can send anywhere.
-  - On macOS a session reads the environment of the server's process and of every other process of the user
-    (`kern.procargs2`), which no Seatbelt rule refuses: the server's environment there must hold no secret (ADR-0021).
+  - A session shares the server's OS user, so it can signal the server's process and write what that user's cron and
+    shell start (the process manager's start script, the user's crontab, shell startup files).
+  - A session keeps the host's network, which it needs to reach its model provider, so what it can read it can send
+    anywhere. A program can too, around its proxy, with the credential in its environment; "no agent sees a credential"
+    holds only as far as the gate's redaction of what a program prints.
+  - A session reads the environment of the server's process and of every other process of the user: the server's
+    environment must hold no secret.
 - A card waiting for the provider is looked at again on the cooldown of the failure that parked it, so after the provider
   answers it can take up to a cooldown and a quarter (about 19 minutes after a limit) to start again.
 - Known gap: shell commands are not limited to the agent's cwd. An early chain created a worktree of its own from the

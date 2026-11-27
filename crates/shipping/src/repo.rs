@@ -8,14 +8,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use forge::Account;
-use model::{Card, Chain, DecisionKind, RepoWork, by_agent};
+use model::{Card, Chain, DecisionKind, RepoWork, WorkPlace, Worktree, by_agent};
 
 use crate::Shipping;
+use crate::folder::folder_named;
 use crate::land::{find_work, last_element};
 use chains::apply::Records;
 use chains::git::Check;
 use chains::git::RepoRemote;
-use chains::git::checkout_remote;
 use chains::git::ensure_clone;
 use chains::git::git;
 use chains::git::own_worktree;
@@ -129,14 +129,11 @@ pub(crate) async fn base_branch(clone: &str) -> String {
 const OPEN_TIMEOUT: Duration = Duration::from_secs(180);
 
 impl Shipping {
-    /// Which repository q names and what to clone it from ("" for one Remit holds): a checkout's path (its origin is
-    /// read, nothing else of it is used), a remote as `parse_remote` reads it, one of the chain's project's repositories
-    /// (`project_repos`, ADR-0108) whether or not Remit holds it, or a repository Remit already holds.
-    pub(crate) async fn resolve_repo(&self, q: &str, project_repos: &[String]) -> Result<(RepoRemote, String)> {
+    /// Which repository q names and what to clone it from ("" for one Remit holds): a remote as `parse_remote` reads it,
+    /// one of the chain's project's repositories (`project_repos`, ADR-0108) whether or not Remit holds it, or a repository
+    /// Remit already holds.
+    pub(crate) fn resolve_repo(&self, q: &str, project_repos: &[String]) -> Result<(RepoRemote, String)> {
         let q = q.trim();
-        if let Some(found) = checkout_remote(q).await {
-            return found.map_err(Error::Refused);
-        }
         if let Some(found) = parse_remote(q) {
             return Ok(found);
         }
@@ -147,13 +144,17 @@ impl Shipping {
         Ok((r, String::new()))
     }
 
-    /// Gives the chain a worktree of a repository on its own branch, from the branch its changes land on. The repository is
-    /// named by its remote, or by a short name its project's repositories resolve first (see `resolve_repo`); Remit
-    /// clones it into its own repos directory the first time.
+    /// Gives the chain a repository to work on. A folder named by its absolute path is worked in place (`open_folder`,
+    /// ADR-0137). Any other name is a repository of a forge: the chain gets a worktree of it on its own branch, from the
+    /// branch its changes land on. It is named by its remote, or by a short name its project's repositories resolve first
+    /// (see `resolve_repo`); Remit clones it into its own repos directory the first time.
     pub async fn open_repo(self: &Arc<Self>, chair: &Card, query: &str) -> Result<RepoWork> {
         let chain = self.chain(&chair.home).await?;
         if let Some(rw) = find_work(&chain.repos, query).and_then(|i| chain.repos.get(i)) {
             return Ok(rw.clone()); // already open
+        }
+        if let Some(dir) = folder_named(query) {
+            return self.open_folder(&chain, chair, &dir).await;
         }
         let ch = chain.clone();
         let project_repos = self
@@ -163,45 +164,45 @@ impl Shipping {
                 None => Ok(Vec::new()),
             })
             .await?;
-        let (remote, clone_url) = self.resolve_repo(query, &project_repos).await?;
+        let (remote, clone_url) = self.resolve_repo(query, &project_repos)?;
         if let Err(err) = self.forge_on(&remote.host) {
             return Err(Error::refused(format!("{} cannot be published: {err}", remote.named())));
         }
         if let Some(other) = chain
             .repos
             .iter()
-            .find(|rw| rw.project == remote.project && rw.repo == remote.project)
+            .find(|rw| rw.repo == remote.project && rw.worktree().is_some_and(|w| w.project == remote.project))
         {
             return Err(Error::refused(format!(
                 "the chain already has {} open on {}; a chain holds one repository of that name",
-                remote.project, other.host
+                remote.project,
+                other.worktree().map(|w| w.host.as_str()).unwrap_or_default()
             )));
         }
         let clone = self.clone_dir(&remote);
-        let mut rw = RepoWork {
-            repo: remote.project.clone(),
+        let mut w = Worktree {
             project: remote.project.clone(),
             host: remote.host.clone(),
             branch: branch_for(&chain),
             path: path_str(&Path::new(&chain.workdir).join(slug(last_element(&remote.project), 40))),
-            ..RepoWork::default()
+            base: String::new(),
         };
         let opened = tokio::time::timeout(OPEN_TIMEOUT, async {
             ensure_clone(&clone, &clone_url).await?;
             let c = path_str(&clone);
-            rw.base = base_branch(&c).await;
-            if Path::new(&rw.path).exists() {
+            w.base = base_branch(&c).await;
+            if Path::new(&w.path).exists() {
                 // Only the chain's own worktree, made before a crash kept it from being recorded, is taken over: anything
                 // else there is another chain's or the owner's.
-                own_worktree(&rw).await.map_err(|err| {
+                own_worktree(&w).await.map_err(|err| {
                     format!(
                         "{} is there already and is not this chain's worktree, so it is left alone: {err}",
-                        rw.path
+                        w.path
                     )
                 })?;
             } else {
-                let from = format!("origin/{}", rw.base);
-                git(&c, &["worktree", "add", "-b", &rw.branch, &rw.path, &from]).await?;
+                let from = format!("origin/{}", w.base);
+                git(&c, &["worktree", "add", "-b", &w.branch, &w.path, &from]).await?;
             }
             Ok::<(), String>(())
         })
@@ -216,9 +217,15 @@ impl Shipping {
                 )));
             }
         }
+        let text = format!("Open {} on branch {} (from {}).", remote.project, w.branch, w.base);
+        let rw = RepoWork {
+            repo: remote.project.clone(),
+            place: WorkPlace::Worktree(w),
+            submit: None,
+        };
         let d = Decided {
             kind: DecisionKind::Repo,
-            text: format!("Open {} on branch {} (from {}).", rw.repo, rw.branch, rw.base),
+            text,
             why: String::new(),
             card_id: chair.id.clone(),
             by: by_agent(&chair.id),
@@ -228,10 +235,10 @@ impl Shipping {
         Ok(rw)
     }
 
-    /// The account rw's forge works as: the chain's commits there are made under its name and email, as a forge's push
+    /// The account the forge of the worktree w works as: the chain's commits there are made under its name and email, as a forge's push
     /// rules check every commit's author and committer against the account that pushes.
-    pub(crate) async fn pusher(&self, rw: &RepoWork) -> Result<Account> {
-        self.pusher_on(&rw.host).await
+    pub(crate) async fn pusher(&self, w: &Worktree) -> Result<Account> {
+        self.pusher_on(&w.host).await
     }
 
     /// The account the forge on host works as, with the name and email its commits are made under.

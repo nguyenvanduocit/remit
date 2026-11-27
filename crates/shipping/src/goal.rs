@@ -429,10 +429,7 @@ pub(crate) fn judge_prompt(j: &JudgeBrief<'_>) -> String {
         ch.workdir
     ));
     for r in &ch.repos {
-        b.push_str(&format!(
-            "- {}: worktree {}, branch {} from {}\n",
-            r.repo, r.path, r.branch, r.base
-        ));
+        b.push_str(&format!("- {}: {}\n", r.repo, r.where_words()));
     }
     if !j.landings.is_empty() {
         b.push_str("\nWHAT IT LANDED (each version of a change, and where it stands):\n");
@@ -690,7 +687,7 @@ impl Shipping {
         if let Some(c) = kr.check.as_ref().filter(|c| c.kind == CheckKind::Command)
             && why.is_empty()
         {
-            why = self.command_refusal(&crate::repochecks::the_jail(), &ch, c).await;
+            why = self.command_refusal(&ch, c).await;
         }
         if !why.is_empty() {
             return self.refuse_finish(chair, &why).await;

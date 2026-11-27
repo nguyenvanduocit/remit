@@ -1,7 +1,7 @@
 # remit (binary)
 
 The `remit` binary (ADR-0072 decision 4): the core, which serves HTTP on TCP and the link (WebTransport, `/link`) on UDP at
-the same `-addr`; the AI runtime (`remit runtime`, its child, ADR-0058); the jail's helper (`jail::init` runs first);
+the same `-addr`; the AI runtime (`remit runtime`, its child, ADR-0058);
 `remit emit` and `remit export`. The bundled plugins run in-process (decision 7).
 
 ## Shape

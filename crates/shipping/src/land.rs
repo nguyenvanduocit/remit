@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use model::{
     Card, Cause, Chain, ChainOrigin, DecisionKind, Duration as Span, Event, EventStatus, ForeignJson, Gate, JobStatus,
-    Landing, LandingState, LandingVersion, Priority, RepoWork, ReturnReason, Round, SignalKey, StagePlan, Submit, Time,
-    by_agent, by_remit,
+    Landing, LandingState, LandingVersion, Priority, QueueKey, RepoWork, ReturnReason, Round, SignalKey, StagePlan,
+    Submit, Time, WorkPlace, Worktree, by_agent, by_remit,
 };
 use serde::Deserialize;
 use telemetry::attr;
@@ -21,9 +21,10 @@ use tokio_util::sync::CancellationToken;
 use tracing::Instrument as _;
 
 use crate::Shipping;
+use crate::folder::landed_in_place;
 use crate::gate::{RAILS_FILE, base_on, gates_of, patch_id, rails_of};
 use crate::repo::foreign_commits;
-use crate::repochecks::{run_checks, the_jail};
+use crate::repochecks::run_checks;
 use crate::round::approved_state;
 use chains::apply::Records;
 use chains::chain_core::{first_line, new_id};
@@ -138,15 +139,15 @@ fn land_job(chain_id: &str, chair_id: &str, repo: &str, at: Time) -> Result<Even
 }
 
 /// The index of the chain's work on the repository named q. q names it as open_repo accepts it (its path on the forge,
-/// host/project, or its last element) or as open_repo reported it (its worktree's directory).
+/// host/project, or its last element; a folder's path) or as open_repo reported it (its worktree's directory).
 pub fn find_work(repos: &[RepoWork], q: &str) -> Option<usize> {
     let q = q.trim_matches('/');
     repos.iter().position(|rw| {
-        rw.repo == q
-            || rw.project == q
-            || format!("{}/{}", rw.host, rw.project) == q
-            || last_element(&rw.project) == q
-            || (!rw.path.is_empty() && last_element(&rw.path) == q)
+        rw.repo.trim_matches('/') == q
+            || rw.worktree().is_some_and(|w| {
+                w.project == q || format!("{}/{}", w.host, w.project) == q || last_element(&w.project) == q
+            })
+            || (!rw.dir().is_empty() && last_element(rw.dir()) == q)
     })
 }
 
@@ -209,6 +210,39 @@ pub(crate) fn forbidden_path(path: &str) -> bool {
     })
 }
 
+/// What a version of a change is once its place has measured it (`judged_version`): its commit, the commit it is measured
+/// from, its patch id, the gates it needs, the paths it touches and the queue it waits in, none for a folder worked in
+/// place.
+pub(crate) struct Found {
+    pub queue: Option<QueueKey>,
+    pub from: String,
+    pub forked: String,
+    pub change: String,
+    pub gates: Vec<Gate>,
+    pub paths: Vec<String>,
+}
+
+/// The gates a submit asks for before the paths it touches add any.
+pub(crate) fn change_gates(s: &Submit) -> model::ChangeGates {
+    if s.qc_reason.is_none() {
+        model::ChangeGates::Review
+    } else {
+        model::ChangeGates::ReviewAndQc
+    }
+}
+
+/// Holds the paths a change touches to the path rules: a chain may not change what `forbidden_path` names. Pure.
+pub(crate) fn path_rules(paths: &[String]) -> Result<(), String> {
+    let bad: Vec<&str> = paths.iter().map(String::as_str).filter(|p| forbidden_path(p)).collect();
+    if bad.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "these files may not be changed by a chain: {}. Revert them and land again",
+        bad.join(", ")
+    ))
+}
+
 /// How long the checks of a land may take: go build, vet and test and the repository's own.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(20 * 60);
 
@@ -239,10 +273,19 @@ impl Shipping {
         let priority = input.rated()?;
         let i = work_named(&chain.repos, &input.repo)
             .ok_or_else(|| Error::Refused(not_open_text(&chain.repos, &input.repo)))?;
-        let rw = chain.repos.get(i).cloned().unwrap_or_default();
+        let rw = chain
+            .repos
+            .get(i)
+            .cloned()
+            .ok_or_else(|| Error::Refused(not_open_text(&chain.repos, &input.repo)))?;
         let plan = input.plan();
         if let Some(p) = &plan {
-            self.vet_stage(&chain, &rw.host, &rw.project, p).await?;
+            let Some(w) = rw.worktree() else {
+                return Err(Error::refused(
+                    "a folder worked in place has no canary stages: its files are already where they land",
+                ));
+            };
+            self.vet_stage(&chain, &w.host, &w.project, p).await?;
         }
         let start = Submit {
             title: input.title.trim().to_owned(),
@@ -261,12 +304,13 @@ impl Shipping {
         let repo = rw.repo.clone();
         let job = land_job(&chain.id, &chair.id, &repo, start.started_at)?;
         let refusal = format!("a land of {repo} is already running; its result will come as a message");
-        let edit = Arc::new(move |rw: &mut RepoWork| {
+        let edit = Arc::new(move |was: Option<RepoWork>| {
+            let mut rw = was.ok_or_else(|| "the chain no longer has the repository open".to_owned())?;
             if rw.submit.is_some() {
                 return Err(refusal.clone());
             }
             rw.submit = Some(start.clone());
-            Ok(())
+            Ok(rw)
         });
         let cmd = ChainCmd::Work(WorkCmd {
             repo: repo.clone(),
@@ -401,7 +445,7 @@ impl Shipping {
         });
         let ready = rec.landings.iter().any(|w| w.landing.state == LandingState::Ready);
         let contends = rec.landings.iter().any(|w| w.landing.state == LandingState::Contending);
-        let q = rec.landings.first().map(|w| w.landing.queue());
+        let q = rec.landings.iter().rev().find_map(|w| w.landing.queue.clone());
         if let Err(err) = self.apply(chain_id, cmd, rec).await {
             return tracing::error!(chain = %chain_id, %repo, %err,
                 "land: its end was not recorded; the next start runs it again");
@@ -419,51 +463,85 @@ impl Shipping {
     /// returned unsaved, judging, with what the deciders did to its review (`Core::judge_change`); `queued` says whether
     /// its gates hold it.
     async fn version_of_work(&self, chain: &Chain, rw: &RepoWork, s: &Submit) -> Result<(Landing, Vec<Said>), String> {
-        let f = self.forge_on(&rw.host).map_err(|e| e.to_string())?;
-        let who = self.pusher(rw).await.map_err(|e| e.to_string())?;
-        let dir = rw.path.clone();
+        match &rw.place {
+            WorkPlace::Worktree(w) => self.version_of_worktree(chain, rw, w, s).await,
+            WorkPlace::Folder { .. } => self.version_of_folder(chain, rw, s).await,
+        }
+    }
+
+    /// `version_of_work` for a worktree: see there.
+    async fn version_of_worktree(
+        &self,
+        chain: &Chain,
+        rw: &RepoWork,
+        w: &Worktree,
+        s: &Submit,
+    ) -> Result<(Landing, Vec<Said>), String> {
+        let f = self.forge_on(&w.host).map_err(|e| e.to_string())?;
+        let who = self.pusher(w).await.map_err(|e| e.to_string())?;
+        let dir = w.path.clone();
         git(&dir, &["add", "-A"]).await?;
         if git(&dir, &["diff", "--cached", "--quiet"]).await.is_err() {
             let (name, email) = (format!("user.name={}", who.name), format!("user.email={}", who.email));
             git(&dir, &["-c", &name, "-c", &email, "commit", "-q", "-m", &s.title]).await?;
         }
-        let base = base_on(&f, rw).await?;
+        let base = base_on(&f, w).await?;
         let from = git(&dir, &["rev-parse", "HEAD"]).await?;
         let forked = git(&dir, &["merge-base", &base, &from]).await?;
         if forked == from {
-            return Err(format!(
-                "the worktree holds nothing beyond {}: nothing to land",
-                rw.base
-            ));
+            return Err(format!("the worktree holds nothing beyond {}: nothing to land", w.base));
         }
-        let foreign = foreign_commits(&dir, &rw.base).await?;
+        let foreign = foreign_commits(&dir, &w.base).await?;
         if !foreign.is_empty() {
             return Err(format!(
                 "the worktree carries commits that are not this chain's work: they are already on another branch of the \
                  repository (a release or hotfix). Drop them (git rebase --onto, or rebuild from origin/{} with \
                  cherry-pick of the chain's own commits), then land again:\n{}",
-                rw.base,
+                w.base,
                 foreign.join("\n")
             ));
         }
         let change = patch_id(&dir, &base, &from).await?;
         if change.is_empty() {
-            return Err(format!(
-                "the worktree changes nothing beyond {}: nothing to land",
-                rw.base
-            ));
+            return Err(format!("the worktree changes nothing beyond {}: nothing to land", w.base));
         }
         let rails = rails_of(&dir, &base).await?;
-        let change_gates = if s.qc_reason.is_none() {
-            model::ChangeGates::Review
-        } else {
-            model::ChangeGates::ReviewAndQc
-        };
-        let mut gates = gates_of(change_gates, &dir, &base, &from, &rails).await?;
+        let gates = gates_of(change_gates(s), &dir, &base, &from, &rails).await?;
         let paths = self
             .pass_rules(&dir, &forked, &from)
             .instrument(tracing::info_span!(attr::CHECKS_SPAN, { attr::CHAIN_ID } = %chain.id))
             .await?;
+        let found = Found {
+            queue: Some(QueueKey {
+                host: w.host.clone(),
+                project: w.project.clone(),
+                base: w.base.clone(),
+            }),
+            from,
+            forked,
+            change,
+            gates,
+            paths,
+        };
+        self.judged_version(chain, rw, s, found).await
+    }
+
+    /// The version found, given to its judges: who made it, what its deciders judged of it, recorded unsaved as judging.
+    pub(crate) async fn judged_version(
+        &self,
+        chain: &Chain,
+        rw: &RepoWork,
+        s: &Submit,
+        found: Found,
+    ) -> Result<(Landing, Vec<Said>), String> {
+        let Found {
+            queue,
+            from,
+            forked,
+            change,
+            mut gates,
+            paths,
+        } = found;
         let v = self.version_of(&chain.id, rw).await.map_err(|e| e.to_string())?;
         let id = new_id("ln_");
         let chair_id = chain.chair_id.clone();
@@ -490,9 +568,7 @@ impl Shipping {
             id,
             chain_id: chain.id.clone(),
             repo: rw.repo.clone(),
-            host: rw.host.clone(),
-            project: rw.project.clone(),
-            base: rw.base.clone(),
+            queue,
             version: LandingVersion {
                 from,
                 forked,
@@ -528,14 +604,8 @@ impl Shipping {
             .filter(|p| !p.is_empty())
             .map(str::to_owned)
             .collect();
-        let bad: Vec<&str> = paths.iter().map(String::as_str).filter(|p| forbidden_path(p)).collect();
-        if !bad.is_empty() {
-            return Err(format!(
-                "these files may not be changed by a chain: {}. Revert them and land again",
-                bad.join(", ")
-            ));
-        }
-        let runner = self.checks.clone().unwrap_or_else(|| run_checks(the_jail()));
+        path_rules(&paths)?;
+        let runner = self.checks.clone().unwrap_or_else(|| run_checks());
         let checks: Vec<Check> = runner(dir.to_owned(), paths.clone()).await;
         if let Some(c) = checks.iter().find(|c| !c.ok) {
             return Err(format!("{} failed; fix it and land again:\n{}", c.command, c.output));
@@ -590,6 +660,7 @@ impl Shipping {
         let at = l.created_at;
         let approved = approve(&mut l, &approvals, self.cfg.require_approvals, round.as_ref(), at);
         let text = if approved {
+            landed_in_place(chain, &l, rec).map_err(|e| e.to_string())?;
             approved_text(&l)
         } else {
             let missing = missing_approvals(&approvals, &l.repo, &l.version.change, &l.version.gates);
@@ -603,15 +674,20 @@ impl Shipping {
             let depth = l.version.effort.as_deref().map_or_else(String::new, |e| {
                 format!(" Remit runs the change reviewers at {e} effort, as the change was judged risky.")
             });
+            let read = self.read_command(chain, &l).map_or_else(String::new, |c| {
+                format!(" The folder has no branch to diff: a reviewer reads the change between its checkpoints with `{c}`.")
+            });
             format!(
                 "Version {} of {} is checked and waits for its gates:\n- {}\nHire a judge for each gate listed (a \
                  reviewer, role \"reviewer\", reviews the diff and verifies the behaviour; a separate QC, role \"qc\", \
-                 runs the distinct check named for it); each records its verdict with record_verdict on this version.{security}{depth} {} the moment the \
+                 runs the distinct check named for it); each records its verdict with record_verdict on this version.{read}{security}{depth} {} the moment the \
                  last approves; a commit after it needs land again.",
                 l.version.number,
                 l.repo,
                 missing.join("\n- "),
-                if round.is_some() {
+                if l.queue.is_none() {
+                    "It lands"
+                } else if round.is_some() {
                     "It contends in its round"
                 } else {
                     "It enters the queue"
@@ -635,8 +711,9 @@ impl Shipping {
 
 /// Moves landing l on at at when every gate it needs approved its change (any change, when require is false), with the
 /// verdicts that did: whether it moved. It goes where an approved version of its chain goes (`round::approved_state`,
-/// round the round its chain is an attempt of): ready in its queue, or, for an attempt, contending for its round's pick.
-/// The one rule by which a version leaves judging. Pure.
+/// round the round its chain is an attempt of): ready in its queue, or, for an attempt, contending for its round's pick;
+/// a version of a folder worked in place is landed at once, as it has no queue. The one rule by which a version leaves
+/// judging. Pure.
 pub(crate) fn approve(
     l: &mut Landing,
     approvals: &[model::Approval],
@@ -647,9 +724,15 @@ pub(crate) fn approve(
     if require && !missing_approvals(approvals, &l.repo, &l.version.change, &l.version.gates).is_empty() {
         return false;
     }
-    l.state = approved_state(round);
-    if l.state == LandingState::Ready {
-        l.ready_at = Some(at);
+    if l.queue.is_none() {
+        // a folder worked in place: its files are already where they land
+        l.state = LandingState::Landed;
+        l.landed_at = Some(at);
+    } else {
+        l.state = approved_state(round);
+        if l.state == LandingState::Ready {
+            l.ready_at = Some(at);
+        }
     }
     l.version.verdicts = approved_by(approvals, l);
     true
@@ -666,10 +749,17 @@ pub(crate) fn approved_text(l: &Landing) -> String {
         LandingState::Returned { output, .. } => {
             format!("Version {} of {} does not land: {output}", l.version.number, l.repo)
         }
+        LandingState::Landed if l.queue.is_none() => format!(
+            "Version {} of {} is approved and landed: its files are already in the folder, and its checkpoint is the base \
+             of the next version.",
+            l.version.number, l.repo
+        ),
         _ => format!(
             "Version {} of {} is in the queue for {}: Remit combines it with the base, checks it and pushes it; you \
              hear when it lands.",
-            l.version.number, l.repo, l.base
+            l.version.number,
+            l.repo,
+            l.queue.as_ref().map(|q| q.base.as_str()).unwrap_or_default()
         ),
     }
 }

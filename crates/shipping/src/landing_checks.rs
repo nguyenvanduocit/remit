@@ -17,6 +17,7 @@ use model::{
 use serde::Deserialize;
 
 use crate::Shipping;
+use crate::folder::landed_in_place;
 use crate::land::{approve, approved_text};
 use crate::landing::{Verdict, requeued, revertible, verdict_on};
 use crate::queue::{QUEUE, queue_cause};
@@ -58,8 +59,8 @@ fn landing_sensor_of(ch: &Chain, landings: &[Landing], now: Time) -> Option<Sens
         .filter(|l| followed(l, now))
         .map(|l| LandingWatch {
             landing: l.id.clone(),
-            host: l.host.clone(),
-            project: l.project.clone(),
+            host: l.host().to_owned(),
+            project: l.project().to_owned(),
             push: l.push.clone().unwrap_or_default(),
             onto: l.onto.clone().unwrap_or_default(),
         })
@@ -104,7 +105,7 @@ impl Shipping {
                     LandingState::Ready | LandingState::Combining | LandingState::Checking
                 )
             })
-            .map(Landing::queue)
+            .filter_map(|l| l.queue.clone())
             .collect();
         for q in queues {
             self.kick_queue(q);
@@ -147,22 +148,28 @@ impl Shipping {
                 continue;
             }
             ready.updated_at = now;
+            let mut rec = Records::default();
+            if let Err(err) = landed_in_place(&chain, &ready, &mut rec) {
+                tracing::debug!(landing = %l.id, %err, "a landing in place was not recorded as landed");
+                continue;
+            }
             let tell = format!(
                 "Version {} of {} carries every verdict it needs. {}",
                 ready.version.number,
                 ready.repo,
                 approved_text(&ready)
             );
-            let (chain, repo, q) = (ready.chain_id.clone(), ready.repo.clone(), ready.queue());
-            let rec = Records {
-                landings: vec![LandingWrite {
-                    landing: ready,
-                    cause: queue_cause(),
-                }],
-                ..Records::default()
-            };
+            let (chain, repo, q) = (ready.chain_id.clone(), ready.repo.clone(), ready.queue.clone());
+            rec.landings.push(LandingWrite {
+                landing: ready,
+                cause: queue_cause(),
+            });
             match self.write_on_chain(&chain, &repo, tell, rec).await {
-                Ok(()) => self.kick_queue(q),
+                Ok(()) => {
+                    if let Some(q) = q {
+                        self.kick_queue(q);
+                    }
+                }
                 Err(err) => tracing::debug!(landing = %l.id, %err, "an approved landing was not put in its queue"),
             }
         }
@@ -196,7 +203,7 @@ impl Shipping {
                 landings
                     .iter()
                     .filter(|l| crate::queue::looked_for(l, &landings, now))
-                    .map(Landing::queue),
+                    .filter_map(|l| l.queue.clone()),
             );
         }
         for q in queues {
@@ -282,7 +289,9 @@ impl Shipping {
             ..Records::default()
         };
         self.commit(None, None, rec).await?;
-        let q = next.queue();
+        let Some(q) = next.queue.clone() else {
+            return self.pipeline.done_saying(d, "a landing in place has no pipeline").await;
+        };
         let queue = self.store.read(move |r| r.queue_landings(&q)).await?;
         if verdict_on(said.push.as_ref(), said.onto.as_ref()) == Verdict::Stands {
             self.kick_release(&next.repo); // what it carried may be released now
@@ -321,8 +330,8 @@ impl Shipping {
             if failed.is_empty() { "a check" } else { failed }
         );
         let alone = rode.len() <= 1;
-        if !alone {
-            self.queue_run(&l.queue(), |r| r.k = crate::landing::halved(rode.len()));
+        if let (false, Some(q)) = (alone, &l.queue) {
+            self.queue_run(q, |r| r.k = crate::landing::halved(rode.len()));
         }
         for x in &rode {
             match self.queue_revert(x, RevertCause::Pipeline, by_remit(QUEUE), &why).await {

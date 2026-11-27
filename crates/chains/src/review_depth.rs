@@ -98,7 +98,7 @@ fn rail_question() -> Option<Question> {
     asked(
         &GATE_TOUCHES_RAIL,
         Kind::noul(
-            "The change alters what authentication, pause and stop, merging, the jail, secrets or credentials do, \
+            "The change alters what authentication, pause and stop, merging, the egress gate, secrets or credentials do, \
              though no path it touches is one of the repository's declared rails.",
             "The change leaves what those rails do as it was, or only reads or names them.",
         ),

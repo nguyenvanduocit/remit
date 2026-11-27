@@ -16,7 +16,7 @@ sessions), `reach`, `pipeline`, `capability`, `keys`, `crew`, `shipping`. Each d
 - The aggregators: the Tick (`src/tick.rs`), a card's tools from every crate (`src/card_tools.rs`,
   `src/capability_tools.rs`, `src/client_tools.rs`), the Assistant (`src/assist*.rs`, `src/assistant_tools.rs`),
   standings, boards, digests, and the lifecycle actions that cross domains.
-- What shipping needs from every domain: a release's steps run through shipping's `StepRunner` over the jail and
+- What shipping needs from every domain: a release's steps run through shipping's `StepRunner` over `procgroup::Program` and
   reach's injecting proxy (`src/release_steps.rs`, ADR-0116), and a repository's queue and Releases views are laid out
   from its landings and releases (`src/repo_view.rs`, ADR-0114), pushed whole as `repo_updated`.
 - `src/lib.rs` re-exports the names `rpc`, `door` and `remit` use, and the crates themselves (`orch::chains`, ...).

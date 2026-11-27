@@ -111,9 +111,7 @@ pub fn revert_of(target: &Landing, id: &str, cause: RevertCause, by: Actor, why:
         id: id.to_owned(),
         chain_id: target.chain_id.clone(),
         repo: target.repo.clone(),
-        host: target.host.clone(),
-        project: target.project.clone(),
-        base: target.base.clone(),
+        queue: target.queue.clone(),
         version: LandingVersion {
             number: target.version.number,
             title: format!("Revert \"{}\"", target.version.title),
