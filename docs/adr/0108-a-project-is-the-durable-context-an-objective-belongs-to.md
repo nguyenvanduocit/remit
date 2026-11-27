@@ -101,7 +101,7 @@ both); *cell-based architecture* as the rejected alternative for this need and t
    `archived`), `customer` (who the product is for, in words), `brief` (the owner's notes on the product: what it is,
    where it runs, what matters; Markdown, at most 4000 characters; what a repository says of itself, its `AGENTS.md`
    and `.remit/checks` (ADR-0025), stays in the repository), `repos` (remotes in `RepoRemote::named` form,
-   `host/group/project` or an absolute local folder path, ADR-0140), `connections` (`ConnectionRef { source, connection }`, each an existing connection), `by`,
+   `host/group/project` or an absolute local folder path, ADR-0141), `connections` (`ConnectionRef { source, connection }`, each an existing connection), `by`,
    `created_at`, `updated_at`. An archived project is offered to no one and stays readable on the objectives that name it;
    nothing is deleted, so no reference dangles.
 2. **`Objective.project: Option<String>`**: the project it belongs to, none for a request about no product. A chain's

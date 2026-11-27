@@ -7,6 +7,7 @@
     reason = "test helpers outside a #[test] fn, where a failed unwrap or panic is the failed assertion"
 )]
 
+mod disk_floor_tests;
 mod gate_depth_tests;
 mod hire_choice_tests;
 mod inbox_prior_tests;

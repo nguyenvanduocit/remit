@@ -1,8 +1,10 @@
 //! The machine this server runs on, as the capacity reads it (`chains::ports::Host`, ADR-0115): the memory free, the
 //! memory its own processes hold (the agents' sessions and what they run are its descendants), the last minute's load and
-//! the cores.
+//! the cores; and the space free on a volume, which a session's start reads (`chains::disk_floor`, ADR-0140).
 
 use std::collections::HashMap;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use orch::chains::ports::{Host, HostReading};
@@ -11,12 +13,15 @@ use sysinfo::{MemoryRefreshKind, Pid, ProcessRefreshKind, ProcessesToUpdate, Sys
 /// This host, read through sysinfo; the system is kept between looks, as sysinfo asks.
 pub struct ThisHost {
     system: Mutex<Option<System>>,
+    /// Whether a volume that could not be read was logged: once, as every session's start reads it.
+    unread_logged: AtomicBool,
 }
 
 impl ThisHost {
     pub fn new() -> Self {
         Self {
             system: Mutex::new(System::new().ok()),
+            unread_logged: AtomicBool::new(false),
         }
     }
 }
@@ -39,6 +44,23 @@ impl Host for ThisHost {
             load: load.one,
             cores,
         })
+    }
+
+    fn free_space(&self, dir: &Path) -> Option<u64> {
+        // the work root may not be made yet: its nearest existing ancestor is on the same volume
+        let read = dir
+            .ancestors()
+            .find(|d| d.exists())
+            .map_or(Err(rustix::io::Errno::NOENT), rustix::fs::statvfs);
+        match read {
+            Ok(fs) => Some(fs.f_bavail.saturating_mul(fs.f_frsize)),
+            Err(err) => {
+                if !self.unread_logged.swap(true, Ordering::Relaxed) {
+                    tracing::warn!(dir = %dir.display(), %err, "read the free space; sessions start unchecked");
+                }
+                None
+            }
+        }
     }
 }
 
