@@ -4329,7 +4329,7 @@ export type Project = {
    * of itself stays in the repository.
    */
   brief: string;
-  /** Its repositories' remotes, `host/group/project`. */
+  /** Its repositories as `host/group/project` remotes or absolute local folder paths. */
   repos: string[];
   connections: ConnectionRef[];
   /** Who made it or last changed it. */

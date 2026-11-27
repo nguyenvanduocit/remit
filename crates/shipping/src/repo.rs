@@ -11,12 +11,12 @@ use forge::Account;
 use model::{Card, Chain, DecisionKind, RepoWork, WorkPlace, Worktree, by_agent};
 
 use crate::Shipping;
-use crate::folder::folder_named;
 use crate::land::{find_work, last_element};
 use chains::apply::Records;
 use chains::git::Check;
 use chains::git::RepoRemote;
 use chains::git::ensure_clone;
+use chains::git::folder_named;
 use chains::git::git;
 use chains::git::own_worktree;
 use chains::git::parse_remote;

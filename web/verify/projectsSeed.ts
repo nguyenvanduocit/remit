@@ -25,7 +25,7 @@ export const projectsSeed = (now: number): Project[] => [
   projectRecord({ id: BILLING, name: 'Billing (old invoices)', status: 'archived', customer: 'accountants of the shops', repos: ['gitlab.com/acme/billing'], connections: [], by: actorOf('assistant', 'assistant'), createdAt: iso(now - 90 * 24 * 60 * MIN), updatedAt: iso(now - 20 * 24 * 60 * MIN), rev: 3 }),
   projectRecord({ id: GAMES, name: 'Game factory player refunds and support tooling', status: 'active', customer: 'players of the game factory', repos: [], connections: [], by: actorOf('owner', 'owner@example.com', 'web'), createdAt: iso(now - 9 * 24 * 60 * MIN), updatedAt: iso(now - 9 * 24 * 60 * MIN), rev: 1 }),
   projectRecord({ id: STOREFRONT, name: 'Storefront', status: 'active', customer: 'shop owners who sell on the storefront, and their buyers at checkout', brief: BRIEF,
-    repos: ['github.com/acme/storefront', 'github.com/acme/checkout', 'gitlab.com/acme/platform/sales-engine'],
+    repos: ['github.com/acme/storefront', 'github.com/acme/checkout', 'gitlab.com/acme/platform/sales-engine', '/Users/remit/Projects/Storefront experiments'],
     connections: [{ source: 'grafana', connection: 'eu-west' }, { source: 'starrocks', connection: 'prod-read' }],
     by: actorOf('assistant', 'assistant'), createdAt: iso(now - 30 * 24 * 60 * MIN), updatedAt: iso(now - 2 * 60 * MIN), rev: 4 }),
 ];

@@ -48,8 +48,8 @@ struct CreateProjectInput {
     /// them; what a repository says of itself (its AGENTS.md, its checks) stays in the repository
     #[serde(default)]
     brief: String,
-    /// its repositories, each by its remote: host/group/project (github.com/owner/name), a remote URL, or the path of a
-    /// checkout on this machine (/Users/me/code/shop, ~/code/shop), stored as its origin; they need not be cloned yet
+    /// its repositories, each by its remote (host/group/project or a remote URL) or by a local folder path on the
+    /// Remit server (/Users/me/code/shop or ~/code/shop). Chains open those folders in place.
     #[serde(default)]
     repos: Vec<String>,
     /// the connections of sources that are this product's, each {source, connection} as list_sources shows them
@@ -85,7 +85,8 @@ struct UpdateProjectInput {
     /// the owner's notes on the product, in Markdown
     #[serde(default)]
     brief: String,
-    /// its repositories, each by its remote
+    /// its repositories, each by its remote (host/group/project or a remote URL) or by a local folder path on the
+    /// Remit server. Chains open those folders in place.
     #[serde(default)]
     repos: Vec<String>,
     /// its connections, each {source, connection}

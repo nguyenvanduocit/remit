@@ -85,26 +85,14 @@ pub fn parse_remote(s: &str) -> Option<(RepoRemote, String)> {
     ))
 }
 
-/// The repository s names when it is written as the path of a checkout (absolute, or starting with ~/): its origin as
-/// written, before any insteadOf rewrite, read as `parse_remote` reads a remote; nothing else of the checkout is used.
-/// None when s is no path; the error says why the checkout names no repository.
-pub async fn checkout_remote(s: &str) -> Option<Result<(RepoRemote, String), String>> {
+/// A local folder can be named by an absolute path or relative to the server's home directory.
+pub fn folder_named(s: &str) -> Option<PathBuf> {
     let s = s.trim();
     let dir = match s.strip_prefix("~/") {
         Some(rest) => PathBuf::from(std::env::var_os("HOME")?).join(rest),
         None => PathBuf::from(s),
     };
-    if !dir.is_absolute() {
-        return None;
-    }
-    let d = path_str(&dir);
-    let named = match git(&d, &["config", "--get", "remote.origin.url"]).await {
-        Ok(origin) => {
-            parse_remote(&origin).ok_or_else(|| format!("the origin of {d} ({origin}) is not on a host Remit can name"))
-        }
-        Err(err) => Err(format!("{d} has no origin remote to name the repository by: {err}")),
-    };
-    Some(named)
+    dir.is_absolute().then_some(dir)
 }
 
 /// Brings Remit's clone at dir up to date with its remote, making it first from clone_url when it does not exist (empty:

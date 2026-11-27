@@ -8,7 +8,7 @@ use model::{Actor, ChangeKind, ConnectionRef, Project, ProjectStatus};
 use crate::Crew;
 use chains::chain_core::{new_id, optional};
 use chains::changes::{Authorship, record_change};
-use chains::git::{checkout_remote, parse_remote};
+use chains::git::{folder_named, parse_remote, path_str};
 use chains::{Error, Result};
 use reach::grants::{connection_in, connection_names};
 
@@ -21,16 +21,13 @@ pub struct ProjectInput {
     pub name: String,
     pub customer: String,
     pub brief: String,
-    /// Its repositories, each by its remote in any form `parse_remote` reads, or by the path of a checkout
-    /// (`checkout_remote`), which `named_checkouts` turns into its origin before the input is checked.
+    /// Its repository remotes or local folder paths.
     pub repos: Vec<String>,
     pub connections: Vec<ConnectionRef>,
 }
 
 impl ProjectInput {
-    /// The input checked and cleaned up, or why it cannot describe a project: no name, notes past the limit, a
-    /// repository that is no remote, a connection with no source or name. Repositories are kept as `RepoRemote::named`
-    /// writes them, and a repeat of one, or of a connection, is dropped. Pure.
+    /// Validates the input, normalizes repository names and drops repeated repositories and connections.
     pub fn checked(&self) -> Result<Self> {
         let name = self.name.trim().to_owned();
         if name.is_empty() {
@@ -48,13 +45,16 @@ impl ProjectInput {
         }
         let mut repos: Vec<String> = Vec::with_capacity(self.repos.len());
         for r in &self.repos {
-            let Some((remote, _)) = parse_remote(r) else {
+            let named = if let Some(dir) = folder_named(r) {
+                path_str(&dir)
+            } else if let Some((remote, _)) = parse_remote(r) {
+                remote.named()
+            } else {
                 return Err(Error::refused(format!(
-                    "{r:?} is no repository's remote: write host/group/project (github.com/owner/name), a remote URL or \
-                     the path of a checkout"
+                    "{r:?} is no repository name: use host/group/project (github.com/owner/name), a remote URL or \
+                     an absolute local folder path"
                 )));
             };
-            let named = remote.named();
             if !repos.contains(&named) {
                 repos.push(named);
             }
@@ -83,19 +83,6 @@ impl ProjectInput {
         })
     }
 
-    /// The input with each repository written as the path of a checkout named by that checkout's origin instead, so a
-    /// project stores remotes only (ADR-0038): the checkout is read once, here, and never again.
-    pub async fn named_checkouts(self) -> Result<Self> {
-        let mut repos = Vec::with_capacity(self.repos.len());
-        for r in self.repos {
-            repos.push(match checkout_remote(&r).await {
-                Some(found) => found.map_err(Error::Refused)?.0.named(),
-                None => r,
-            });
-        }
-        Ok(Self { repos, ..self })
-    }
-
     /// p with this input's fields. Pure.
     fn applied_to(self, p: Project) -> Project {
         Project {
@@ -112,7 +99,7 @@ impl ProjectInput {
 impl Crew {
     /// Makes a project from the owner's words, as by, and tells the channels.
     pub async fn create_project(&self, input: ProjectInput, by: Actor) -> Result<Project> {
-        let input = input.named_checkouts().await?.checked()?;
+        let input = input.checked()?;
         self.connections_exist(&input.connections).await?;
         let now = self.now();
         let fresh = input.applied_to(Project {
@@ -128,7 +115,7 @@ impl Crew {
     /// Replaces project id's fields with input, over revision rev, the one the writer read: a project changed since is
     /// refused, so no one's change is lost. Its status stays.
     pub async fn update_project(&self, id: &str, rev: i64, input: ProjectInput, by: Actor) -> Result<Project> {
-        let input = input.named_checkouts().await?.checked()?;
+        let input = input.checked()?;
         self.connections_exist(&input.connections).await?;
         let key = id.to_owned();
         self.write_project(id, by, move |cur| {
@@ -229,4 +216,29 @@ impl Crew {
 
 fn no_project(id: &str) -> Error {
     Error::refused(format!("no project {id:?}: list_projects shows the ids"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectInput;
+
+    #[test]
+    fn a_project_keeps_a_local_path_alongside_its_remotes() {
+        let input = ProjectInput {
+            name: "Storefront".into(),
+            repos: vec![
+                "/work/Storefront experiments".into(),
+                "https://github.com/owner/storefront.git".into(),
+                "github.com/owner/storefront".into(),
+            ],
+            ..ProjectInput::default()
+        };
+
+        let checked = input.checked().unwrap();
+        assert_eq!(
+            checked.repos,
+            ["/work/Storefront experiments", "github.com/owner/storefront"]
+        );
+        assert_eq!(checked.checked().unwrap(), checked);
+    }
 }

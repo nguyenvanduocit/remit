@@ -48,17 +48,6 @@ pub struct RestoreInput {
     pub why: String,
 }
 
-/// The directory a repository name is, when it is the absolute path of one (or starts with `~/`): such a name opens the
-/// folder in place.
-pub(crate) fn folder_named(q: &str) -> Option<PathBuf> {
-    let q = q.trim();
-    let dir = match q.strip_prefix("~/") {
-        Some(rest) => PathBuf::from(std::env::var_os("HOME")?).join(rest),
-        None => PathBuf::from(q),
-    };
-    dir.is_absolute().then_some(dir)
-}
-
 /// The chain among chains, other than chain_id's own, that holds dir in place and is not done.
 fn held_by<'a>(chains: &'a [Chain], chain_id: &str, dir: &str) -> Option<&'a Chain> {
     chains

@@ -39,7 +39,7 @@ pub struct Project {
     /// The owner's notes on the product (what it is, where it runs, what matters), in Markdown. What a repository says
     /// of itself stays in the repository.
     pub brief: String,
-    /// Its repositories' remotes, `host/group/project`.
+    /// Its repositories as `host/group/project` remotes or absolute local folder paths.
     pub repos: Vec<String>,
     pub connections: Vec<ConnectionRef>,
     /// Who made it or last changed it.

@@ -105,7 +105,10 @@ pub fn project_section(project: &ProjectBrief) -> String {
                 b.push_str(&format!("- Customer: {}\n", p.customer));
             }
             if !p.repos.is_empty() {
-                b.push_str(&format!("- Repositories: {}\n", p.repos.join(", ")));
+                b.push_str("- Repositories (pass the full path to open_repo for a local folder):\n");
+                for repo in &p.repos {
+                    b.push_str(&format!("  - {repo:?}\n"));
+                }
             }
             if !p.connections.is_empty() {
                 let named: Vec<String> = p
