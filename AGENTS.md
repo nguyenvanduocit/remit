@@ -206,9 +206,10 @@ A claim without evidence is a hypothesis: call it by its name.
   a test that would push it past is not added.
 - **Test behaviour, not implementation.** A test drives the code the way its real caller does and asserts what that caller
   observes. A test that would still pass if every function returned nothing is worthless: delete it.
-- Before every commit run `cargo clippy -p <crate> --all-targets -- -D warnings` and `cargo nextest run -p <crate>` for each crate
-  you edited, and `make test-changed FILES="<files you edited>"` for `web/` and `scripts/`; `make test` and CI run
-  the rest. Zero pending, **zero failing in your scope**; a red test elsewhere goes in the summary (*Ownership*).
+- **Test the changed scope.** Before every commit run `cargo clippy -p <crate> --all-targets -- -D warnings` and
+  `cargo nextest run -p <crate>` for each crate you edited, and `make test-changed FILES="<files you edited>"` for
+  `web/` and `scripts/`. Run only checks relevant to the change. CI runs the full suite. Zero pending, **zero failing
+  in your scope**; a red test elsewhere goes in the summary (*Ownership*).
 - A lint finding is fixed, or kept at its line with `#[expect(<lint>, reason = "<why>")]`. A lint that needs that more
   than 5 times for the same finding in idiomatic code is wrong for this codebase: switch it off in `Cargo.toml`
   `[workspace.lints]`, saying why.
