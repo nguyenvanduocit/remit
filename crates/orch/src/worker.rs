@@ -140,6 +140,7 @@ fn for_mentor(a: &mut AgentStanding, h: Option<&Help>) {
     a.doing_tone = doing_tone;
     a.waiting.clear();
     a.on_message = None;
+    a.send_delivery = None;
     a.on_send = None;
 }
 

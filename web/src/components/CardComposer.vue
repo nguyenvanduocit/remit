@@ -21,10 +21,8 @@ import Spinner from './Spinner.vue';
 // session, or one that resumes its closed session (and reopens a finished chain); with neither, a restart when it has no
 // session left, or nothing at all (a judge that never opened a session). What is typed is the card's message draft, which the server
 // keeps as it is typed: the same on every page, and there after a reload. Under the box, stopping the agent on the left (it asks first),
-// then what Send does now in the server's words (`agent.onSend`: it waits for the turn in progress, the chain is paused) when the
-// agent does not read it at once, and the sends on the right, wrapping at the drawer's narrowest: Send queues
-// the message (read after the turn in progress, at once when none runs), and while a turn runs the server may offer Steer
-// (into that turn) and Interrupt (the turn ends and the message is read next) as choices of their own (ADR-0080). `deliver`
+// then what Send does now in the server's words (`agent.onSend`). The primary Send and Enter use the delivery chosen by the
+// server. During a turn the other choices let the owner queue the message or end the turn and send (ADR-0080). `deliver`
 // sends the draft: to a chain's agent (cardPrompt) unless given, the Assistant's panel gives its own (assistantPrompt). A card
 // Claude Code spawned runs inside its parent's process and takes no message of its own: it says to talk to the parent, and
 // keeps its Stop.
@@ -82,7 +80,7 @@ function onPick(e: Event) {
 const unattach = (id: string) => (attachments.value = attachments.value.filter((i) => i.id !== id));
 // The box never holds: the words leave it at once for a pending row at the end of the stream, which says how they go
 // (ADR-0094; AgentDrawer shows them, so the box never moves).
-function sendAs(how: Delivery) {
+function sendAs(how: Delivery = props.agent.sendDelivery ?? 'queue') {
   if (putting.value) return; // an attachment still on its way would be left out
   delivery = how;
   void message.send();
@@ -133,7 +131,7 @@ async function stop(why: string) {
         :aria-describedby="agent.onSend ? saysId : undefined"
         :placeholder="can('message') ? (chair ? 'Talk to the Chair…' : `Message ${name}…`) : `Message to resume ${chair ? 'the Chair' : name}’s session…`"
         class="max-h-48 min-h-0 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 text-[13px] leading-relaxed shadow-none outline-none focus-visible:outline-none focus-visible:ring-0 disabled:bg-transparent disabled:opacity-100"
-        @keydown="onComposerKey($event, () => sendAs('queue'), () => ($event.target as HTMLElement).blur())"
+        @keydown="onComposerKey($event, () => sendAs(), () => ($event.target as HTMLElement).blur())"
         @paste="onPaste"
       />
       <div class="flex flex-wrap items-center gap-1.5 px-2 pt-1 pb-2">
@@ -146,16 +144,17 @@ async function stop(why: string) {
           <Button variant="ghost" size="sm" class="text-mut hover:bg-red-tint hover:text-red-text aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:hover:bg-red-tint" :aria-disabled="!!down" :data-down="!!down || undefined" @click="down || (confirmStop = true)"><Icon name="stop" :size="12" />Stop agent…</Button>
         </Tip>
         <!-- In the button row, which is always there, so the words coming and going with a turn never move the page. -->
-        <span v-if="agent.onSend" :id="saysId" class="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-[11.5px] text-mut" :title="agent.onSend" data-on-send><Icon class="flex-none" name="clock" :size="12" /><span class="truncate">{{ agent.onSend }}</span></span>
+        <span v-if="agent.onSend" :id="saysId" class="flex min-w-0 flex-auto items-center gap-1.5 px-1 text-[11.5px] text-mut" :title="agent.onSend" data-on-send><Icon class="flex-none" name="clock" :size="12" /><span class="truncate">{{ agent.onSend }}</span></span>
         <div class="ml-auto flex flex-wrap justify-end gap-1.5" data-sends>
           <Tip v-if="can('interrupt') && !unsent" :text="down ?? 'End the turn in progress. The agent stays available for your next message.'">
             <Button variant="outline" size="sm" class="rounded-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50" :aria-disabled="!!down" :data-down="!!down || undefined" @click="down || act('cardCancel', [card.id], 'Turn interrupted')"><Icon name="interrupt" :size="13" />Interrupt</Button>
           </Tip>
           <template v-if="unsent">
-            <Tip v-if="can('steer')" text="Put this into the turn in progress: the agent reads it at its next step"><Button variant="outline" size="sm" class="rounded-full" :disabled="!!putting" data-send="steer" @click="sendAs('steer')">Steer</Button></Tip>
+            <Tip v-if="agent.sendDelivery === 'steer'" text="Send after the current turn"><Button variant="outline" size="sm" class="rounded-full" :disabled="!!putting" data-send="queue" @click="sendAs('queue')">Queue</Button></Tip>
+            <Tip v-else-if="can('steer')" text="Put this into the turn in progress: the agent reads it at its next step"><Button variant="outline" size="sm" class="rounded-full" :disabled="!!putting" data-send="steer" @click="sendAs('steer')">Steer</Button></Tip>
             <Tip v-if="can('interrupt')" text="End the turn in progress: the agent reads this next"><Button variant="outline" size="sm" class="rounded-full" :disabled="!!putting" data-send="interrupt" @click="sendAs('interrupt')">Interrupt and send</Button></Tip>
           </template>
-          <Button v-if="unsent || !can('interrupt')" size="sm" class="rounded-full pl-3" :disabled="!unsent || !!putting" data-send="queue" @click="sendAs('queue')">Send<Icon name="arrow-up" :size="13" /></Button>
+          <Button v-if="unsent || !can('interrupt')" size="sm" class="rounded-full pl-3" :disabled="!unsent || !!putting" data-send="default" @click="sendAs()">Send<Icon name="arrow-up" :size="13" /></Button>
         </div>
       </div>
     </div>

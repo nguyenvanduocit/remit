@@ -68,11 +68,12 @@ merge button in the browser is a second merge path beside `merge_mr`, which ever
   in progress with `Session::steer`, falling back to `queue` when the turn ended meanwhile (what `outbox.rs` `steer` does);
   `interrupt`: the turn ends and the message is read next (today's Send now).
 - `AgentStanding.asks` gains `steer` when the card is in a turn and its session takes input (not a card spawned inside its
-  parent's process, which takes no message of its own). The composer offers Send (queue) and, during a turn, Steer and
-  Interrupt.
-- `AgentStanding.on_send: Option<String>`: what a message sent now does, in the server's words, when it is not "the agent
-  reads it now": "Waits for the current turn (+2 queued)", "The chain is paused: the Chair reads it first on Resume", "Wakes the
-  Chair now". The composer shows it under the box.
+  parent's process, which takes no message of its own). The server sets `AgentStanding.send_delivery` to `steer` during an
+  available turn. Send and Enter use that delivery, with Queue as a separate choice alongside Interrupt and send. Without
+  a server-selected delivery, Send uses Queue.
+- `AgentStanding.on_send: Option<String>` describes what Send does in the server's words. The composer shows it under
+  the box, for example "Into this turn", "The chain is paused: the Chair reads it first on Resume", or
+  "Wakes the Chair now".
 - A queued message can be taken back before an agent reads it: `card_prompt_withdraw(event_id) -> Draft` returns its words to
   the card's message draft and deletes the queued prompt; refused once it is taken or steered, and refused while the card's
   draft holds unsent words (so nothing he typed is replaced).

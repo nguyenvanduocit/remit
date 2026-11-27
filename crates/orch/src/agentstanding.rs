@@ -7,7 +7,7 @@ use model::{
     ActorKind, Approval, Card, CardRole, CardStatus, Chain, ChainStatus, Edge, Event, EventStatus, FindingBlocker,
     InboxItem, InboxKind, JudgeKind, Origin, PermissionWait, Time,
 };
-use wire::app::{AgentStanding, AgentTone, Ask, Branch, DoingTone, OnMessage};
+use wire::app::{AgentStanding, AgentTone, Ask, Branch, Delivery, DoingTone, OnMessage};
 
 use crate::standing::{Ending, outcome_of};
 use crate::waiting::{kind_of, label_of, waits_on_owner};
@@ -203,6 +203,7 @@ pub(crate) fn agents_of(c: &Chain, input: AgentsInput<'_>) -> Vec<AgentStanding>
             let paused = *c.status() == ChainStatus::Paused;
             let clock = clock_of(k, w, on_message, paused);
             let asks = asks_of(k, c.status());
+            let (send_delivery, on_send) = send_of(k, Some(c.status()), &asks);
             let stop_says = if asks.contains(&Ask::Stop) {
                 chains::lifecycle::stop_says(k, Some(c))
             } else {
@@ -231,7 +232,8 @@ pub(crate) fn agents_of(c: &Chain, input: AgentsInput<'_>) -> Vec<AgentStanding>
                 stop_says,
                 remembers: remembers(k),
                 on_message,
-                on_send: on_send_of(k, Some(c.status())),
+                send_delivery,
+                on_send,
                 rev: 0,
             }
         })
@@ -264,37 +266,37 @@ fn queued_of(k: &Card) -> String {
     }
 }
 
-/// What a message the owner sends agent k now does, when it is not read at once: it waits for the turn in progress
-/// (and those queued before it), for its session to open, or for the paused chain to run again; a waiting chain's Chair
-/// is woken by it. chain is its chain's status, none for an agent in no chain. None when it is read now, or when k takes
-/// no message (`asks_of`).
-pub(crate) fn on_send_of(k: &Card, chain: Option<&ChainStatus>) -> Option<String> {
-    if spawned(k) {
-        return None;
-    }
-    match chain {
-        Some(ChainStatus::Done) => return None,
+/// How Send meets the agent's turn, with the text shown by the composer when delivery needs explaining.
+fn send_of(k: &Card, chain: Option<&ChainStatus>, asks: &[Ask]) -> (Option<Delivery>, Option<String>) {
+    let note = match chain {
+        Some(ChainStatus::Done) => None,
+        _ if spawned(k) => None,
         Some(ChainStatus::Paused) if k.origin == Origin::Chair => {
-            return Some("The chain is paused: the Chair reads it first on Resume".to_owned());
+            Some("The chain is paused: the Chair reads it first on Resume".to_owned())
         }
-        Some(ChainStatus::Paused) => return Some("The chain is paused: it is read on Resume".to_owned()),
+        Some(ChainStatus::Paused) => Some("The chain is paused: it is read on Resume".to_owned()),
+        _ if asks.contains(&Ask::Steer) => {
+            let note = if k.queued > 0 {
+                "Queue goes first"
+            } else {
+                "Into this turn"
+            };
+            return (Some(Delivery::Steer), Some(note.to_owned()));
+        }
         Some(ChainStatus::Waiting) if k.origin == Origin::Chair && !at_work_now(k) => {
-            return Some("Wakes the Chair now".to_owned());
+            Some("Wakes the Chair now".to_owned())
         }
-        _ => {}
-    }
-    let queued = if k.queued > 0 {
-        format!(" (+{} queued)", k.queued)
-    } else {
-        String::new()
+        _ if k.status() == &CardStatus::Starting => {
+            let queued = if k.queued > 0 {
+                format!(" (+{} queued)", k.queued)
+            } else {
+                String::new()
+            };
+            Some(format!("Waits for its session to open{queued}"))
+        }
+        _ => None,
     };
-    if in_turn(k) {
-        return Some(format!("Waits for the current turn{queued}"));
-    }
-    if k.status() == &CardStatus::Starting {
-        return Some(format!("Waits for its session to open{queued}"));
-    }
-    None
+    (None, note)
 }
 
 /// The first of items, open inbox items with one agent, in the board's order (the oldest: every kind of item holds the
@@ -335,13 +337,13 @@ pub(crate) fn standalone_standing(
         },
         asks: vec![Ask::Message],
         remembers: remembers(k),
-        on_send: on_send_of(k, None),
         ..AgentStanding::default()
     };
     if in_turn(k) {
         st.asks.extend([Ask::Steer, Ask::Interrupt]);
         st.on_message = on_message;
     }
+    (st.send_delivery, st.on_send) = send_of(k, None, &st.asks);
     if chains::assistant::can_change_runtime(k) {
         st.asks.push(Ask::ChangeRuntime);
     }

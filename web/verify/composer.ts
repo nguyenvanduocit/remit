@@ -1,10 +1,10 @@
-// The agent drawer's composer and what waits pinned over it, on made-up data, at the width the app opens the drawer. No server,
+// The agent drawer's composer and what waits pinned over it, on made-up data, at a desktop drawer width. No server,
 // no sign-in: a fake server answers the page's real client core. Open /verify/composer.html; ?case=busy|paused|idle picks the
-// agent (default busy: an engineer mid-turn, its session taking input, so Send queues and Steer and Interrupt are offered, the
-// server saying under the box that a message waits for the turn (+2 queued); one message of the owner's still queued, which he
+// agent (default busy: an engineer mid-turn, its session taking input, so Send steers and Queue and Interrupt are offered, the
+// server saying under the box that older queued messages go first; one message of the owner's still queued, which he
 // may take back into the box; an earlier group of tool calls with one failed; and its permission prompt pinned, which he may
 // refuse with a reason). paused: the Chair of a paused chain, the box saying the Chair reads it first on Resume. idle: an agent
-// that reads a message at once, so nothing is said under the box. ?width=<px> sets the drawer (the app allows 320 to 720).
+// that reads a message at once, so nothing is said under the box. ?width=<px> overrides the 576 px desktop drawer, which is up to 960 px tall.
 // The calls the buttons make are kept in window.calls. ?send=slow answers a message after 1.5 s; ?send=fail fails the first
 // one (the next goes). The connection banner shows over the drawer, and window.link.down() / window.link.up() take the server
 // away and bring it back, to see messages sent offline wait and go; window.link.newBuild() turns the page away as another
@@ -33,7 +33,7 @@ const params = new URLSearchParams(location.search);
 const which = params.get('case') ?? 'busy';
 let sending = params.get('send');
 let failures = sending === 'fail' ? 1 : 0;
-const width = params.get('width') ?? '420';
+const width = params.get('width') ?? '576';
 const MIN = 60_000;
 const t0 = Date.now() - 20 * MIN;
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -45,7 +45,7 @@ const chain = chainRecord({ id: 'c1', title: 'Retire the legacy retention job', 
 const open = cardRecord({
   id: paused ? 'chair' : 'eng', home: 'c1', agent: paused ? 'chair' : 'engineer', name: paused ? 'Chair' : 'Engineer · retention migration', origin: paused ? 'chair' : 'hired',
   model: 'opus', mode: 'auto', cwd: '/', sessionId: 's-eng', status: busy ? 'running' : 'idle', plan: [], ctxUsed: 42_000, ctxSize: 200_000, turns: 4,
-  queued: busy ? 2 : 0, createdAt: iso(t0), updatedAt: iso(Date.now()), rev: 1,
+  queued: busy ? 1 : 0, createdAt: iso(t0), updatedAt: iso(Date.now()), rev: 1,
 });
 
 let n = 0;
@@ -92,12 +92,13 @@ Risk high: cannot be undone, production, outside the sandbox, network.
   options: [optionOf('allow', 'Allow', 'allow_once'), optionOf('reject', 'Refuse', 'reject_once')], status: 'open', createdAt: iso(t0 + 5 * MIN), rev: 1,
 });
 const ON_SEND: Record<string, string | undefined> = {
-  busy: 'Waits for the current turn (+2 queued)',
+  busy: 'Queue goes first',
   paused: 'The chain is paused: the Chair reads it first on Resume',
 };
 const standing = (): AgentStanding => ({
   ...agentStands('c1', open.id, busy ? 'Needs you' : paused ? 'Paused' : 'Idle', busy ? 'needs' : 'idle', busy ? 'Approve: Run psql -c "DELETE FROM events …"' : 'Turn done', busy ? 'needs' : 'done', busy ? [permission.id] : [],
     { asks: busy ? ['message', 'steer', 'interrupt', 'stop'] : ['message', 'stop'] }),
+  ...(busy && { sendDelivery: 'steer' as const }),
   ...(ON_SEND[which] && { onSend: ON_SEND[which] }),
 });
 
@@ -158,7 +159,9 @@ function prompt(draftId: string, delivery: Delivery): EventRead {
   const files = drafts.get(draftId)?.attachments ?? [];
   calls.push(`cardPrompt ${delivery} ${text} attachments=${files.length}`);
   drafts.end([draftId]);
-  const e = ev('prompt', 6, { title: 'Your message', text: `${text}`, by: owner, status: busy && delivery === 'queue' ? 'queued' : delivery === 'steer' ? 'steered' : 'delivered', createdAt: iso(Date.now()), updatedAt: iso(Date.now()), ...(files.length && { data: { attachments: files } }) });
+  const olderQueued = events.some(({ event }) => event.kind === 'prompt' && event.status === 'queued');
+  const status = busy && (delivery === 'queue' || (delivery === 'steer' && olderQueued)) ? 'queued' : delivery === 'steer' ? 'steered' : 'delivered';
+  const e = ev('prompt', 6, { title: 'Your message', text, by: owner, status, createdAt: iso(Date.now()), updatedAt: iso(Date.now()), ...(files.length && { data: { attachments: files } }) });
   events.push(e);
   queueMicrotask(() => fake.push('eventAdded', e));
   return e;
@@ -171,7 +174,7 @@ await router.push('/');
 createApp({
   render: () =>
     h(TooltipProvider, { delayDuration: 300 }, () => [
-      h('div', { style: `display:flex;flex-direction:column;width:${width}px;height:720px;margin:16px;border:1px solid var(--line)` }, [
+      h('div', { style: `display:flex;flex-direction:column;width:${width}px;height:calc(100dvh - 32px);max-height:960px;margin:16px;border:1px solid var(--line)` }, [
         h(ConnectionBanner),
         h('div', { style: 'display:flex;flex:1;min-height:0' }, [opened.view ? h(CardDrawer, { view: opened.view, card: opened.view.cards[0] }) : null]),
       ]),

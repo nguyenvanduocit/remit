@@ -1208,8 +1208,10 @@ pub struct AgentStanding {
     /// None while it is not in a turn.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_message: Option<OnMessage>,
-    /// What a message sent now does, in the server's words, when it is not read at once ("Waits for the current turn
-    /// (+2 queued)"); the composer shows it in its button row (ADR-0080).
+    /// The delivery selected by Send. If absent, Send uses Queue.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub send_delivery: Option<Delivery>,
+    /// What Send does now, in the server's words, shown in the composer's button row (ADR-0080).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_send: Option<String>,
     pub rev: i64,

@@ -982,10 +982,9 @@ export type AgentStanding = {
   remembers: boolean;
   /** None while it is not in a turn. */
   onMessage?: OnMessage;
-  /**
-   * What a message sent now does, in the server's words, when it is not read at once ("Waits for the current turn
-   * (+2 queued)"); the composer shows it in its button row (ADR-0080).
-   */
+  /** The delivery selected by Send. If absent, Send uses Queue. */
+  sendDelivery?: Delivery;
+  /** What Send does now, in the server's words, shown in the composer's button row (ADR-0080). */
   onSend?: string;
   rev: number;
 };
